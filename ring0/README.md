@@ -140,7 +140,7 @@ Let's make the machine join the mesh VPN and install the hosting tooling.
 
 ```console
 # A one-time script to execute on the machine
-headnode$ wget https://github.com/mgrzybek/micro-cloud/main/raw/ring0/scripts/init-headnode.sh
+headnode$ wget https://raw.githubusercontent.com/mgrzybek/micro-cloud/refs/heads/main/ring0/scripts/init-headnode.sh
 
 # Starting the init script
 headnode$ ./init-headnode.sh

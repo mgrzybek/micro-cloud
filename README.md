@@ -75,7 +75,7 @@ The project relies on a home server rack composed of:
 On the physical machine with KVM access:
 
 ```bash
-wget http://github.com/mgrzybek/micro-cloud/raw/main/ring0/pets/init-headnode.sh
+wget https://raw.githubusercontent.com/mgrzybek/micro-cloud/refs/heads/main/ring0/scripts/init-headnode.sh
 chmod +x init-headnode.sh
 ./init-headnode.sh
 ```
