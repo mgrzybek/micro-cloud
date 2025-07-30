@@ -57,6 +57,30 @@ if [[ -z "$TALOS_FACTORY_URL" ]] ; then
     exit 1
 fi
 
+if [[ -z "$PKI_COUNTRY" ]] ; then
+    echo "PKI_COUNTRY must be defined"
+    exit 1
+fi
+
+if [[ -z "$PKI_LOCATION" ]] ; then
+    echo "PKI_LOCATION must be defined"
+    exit 1
+fi
+
+if [[ -z "$PKI_ORG" ]] ; then
+    echo "PKI_ORG must be defined"
+    exit 1
+fi
+
+if [[ -z "$PKI_ORG_UNIT" ]] ; then
+    echo "PKI_ORG_UNIT must be defined"
+    exit 1
+fi
+
+if [[ -z "$PKI_STATE" ]] ; then
+    echo "PKI_STATE must be defined"
+    exit 1
+fi
 
 function main() {
     prepare
@@ -128,10 +152,11 @@ function push_csr() {
   ],
   "names": [
     {
-      "C": "FR",
-      "L": "Paris",
-      "O": "Mushroom Cloud",
-      "OU": "CA Services"
+      "C": "$PKI_COUNTRY",
+      "L": "$PKI_LOCATION",
+      "O": "$PKI_ORG",
+      "OU": "$PKI_ORG_UNIT",
+      "ST": "$PKI_STATE"
     }
   ]
 }

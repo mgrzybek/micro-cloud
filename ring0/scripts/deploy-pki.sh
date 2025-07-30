@@ -9,11 +9,37 @@ RING0_ROOT="$(dirname $0)/.."
 
 source common.sh
 
+if [[ -z "$PKI_COUNTRY" ]] ; then
+    echo "PKI_COUNTRY must be defined"
+    exit 1
+fi
+
+if [[ -z "$PKI_LOCATION" ]] ; then
+    echo "PKI_LOCATION must be defined"
+    exit 1
+fi
+
+if [[ -z "$PKI_ORG" ]] ; then
+    echo "PKI_ORG must be defined"
+    exit 1
+fi
+
+if [[ -z "$PKI_ORG_UNIT" ]] ; then
+    echo "PKI_ORG_UNIT must be defined"
+    exit 1
+fi
+
+if [[ -z "$PKI_STATE" ]] ; then
+    echo "PKI_STATE must be defined"
+    exit 1
+fi
+
 function main() {
     prepare
 
     create_instance
 
+    create_ca_csr
     create_ca
     create_pki_csr
     create_certificates
@@ -40,6 +66,49 @@ function create_instance() {
     incus exec $INSTANCE -- bash < $RING0_ROOT/core-services/$INSTANCE/debian-$INSTANCE-cloud-init.sh
 
     print_check "The PKI instance is ready to be configured"
+}
+
+function create_ca_csr() {
+    cat << EOF > "$RING0_ROOT/core-services/pki/files/root/root-csr.json"
+{
+  "CN": "Root Certificate Authority",
+  "key": {
+    "algo": "ecdsa",
+    "size": 256
+  },
+  "names": [
+    {
+      "C": "$PKI_COUNTRY",
+      "L": "$PKI_LOCATION",
+      "O": "$PKI_ORG",
+      "OU": "$PKI_ORG_UNIT",
+      "ST": "$PKI_STATE"
+    }
+  ],
+  "ca": {
+    "expiry": "87600h"
+  }
+}
+EOF
+
+    cat << EOF > "$RING0_ROOT/core-services/pki/files/intermediate/intermediate-csr.json"
+{
+  "CN": "Intermediate Certificate Authority",
+  "key": {
+    "algo": "ecdsa",
+    "size": 256
+  },
+  "names": [
+    {
+      "C": "$PKI_COUNTRY",
+      "L": "$PKI_LOCATION",
+      "O": "$PKI_ORG",
+      "OU": "$PKI_ORG_UNIT",
+      "ST": "$PKI_STATE"
+    }
+  ]
+}
+EOF
 }
 
 function create_ca() {

@@ -164,6 +164,13 @@ workstation$ incus remote switch headnode-0
 These tasks are executed on your workstation, inside the git repository root path.
 
 ```shell
+# Some attributes are required to create the root CA
+export PKI_COUNTRY="FR"
+export PKI_LOCATION="Paris"
+export PKI_ORG="My Cloud"
+export PKI_ORG_UNIT="CA Services"
+export PKI_STATE="IDF"
+
 cd ./ring0
 make dist/intermediate-fullchain.pem
 
