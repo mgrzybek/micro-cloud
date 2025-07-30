@@ -130,7 +130,7 @@ function create_talos_config() {
             --config-patch @dist/patch.yaml \
             --config-patch-control-plane @core-services/management/talos/patch.yaml \
             --install-image "$INSTALL_IMAGE" \
-            -o dist
+            -o $RING0_ROOT/dist
     else
         echo "$RING0_ROOT/dist/controlplane.yaml already exists"
     fi
