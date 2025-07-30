@@ -143,7 +143,7 @@ Let's make the machine join the mesh VPN and install the hosting tooling.
 headnode$ wget https://raw.githubusercontent.com/mgrzybek/micro-cloud/refs/heads/main/ring0/scripts/init-headnode.sh
 
 # Starting the init script
-headnode$ ./init-headnode.sh
+headnode$ bash ./init-headnode.sh
 ```
 
 After this task, you should be able to connect against the headnode using Tailscale.
