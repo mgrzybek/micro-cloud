@@ -1,0 +1,221 @@
+---
+variant: flatcar
+version: 1.1.0
+
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEq4VK7r+mAqDeMyv76WkEeSa2dJ5W3e8k4PL1MODnbG mathieu@Mac-mini.lan"
+
+storage:
+  files:
+    # Groups
+    - path: /etc/userdb/core:sudo.membership
+      contents:
+        inline: " "
+    - path: /etc/userdb/core:incus-admin.membership
+      contents:
+        inline: " "
+
+    # Networking
+    ## VLAN 3
+    - path: /etc/systemd/network/00-vlan3.netdev
+      contents:
+        inline: |
+          [NetDev]
+          Name=vlan3
+          Kind=vlan
+
+          [VLAN]
+          Id=3
+
+    - path: /etc/systemd/network/20-vlan3.network
+      contents:
+        inline: |
+          [Match]
+          Name=vlan3
+          Type=vlan
+
+          [Network]
+          Description=The interface for vlan3
+
+          # Very simple static IPv4-only address configuration.
+          # Well, an IPv6-link-local address as well, by default.
+          [Address]
+          Address=10.1.3.3/24
+
+    ## VLAN 4
+    - path: /etc/systemd/network/00-vlan4.netdev
+      contents:
+        inline: |
+          [NetDev]
+          Name=vlan4
+          Kind=vlan
+
+          [VLAN]
+          Id=4
+
+    - path: /etc/systemd/network/20-vlan4.network
+      contents:
+        inline: |
+          [Match]
+          Name=vlan4
+          Type=vlan
+
+          [Network]
+          Description=The interface for vlan4
+
+          # Very simple static IPv4-only address configuration.
+          # Well, an IPv6-link-local address as well, by default.
+          [Address]
+          Address=10.1.4.3/24
+
+    ## Physical interface
+    - path: /etc/systemd/network/00-eth0.network
+      contents:
+        inline: |
+          [Match]
+          Name=eth0
+          Type=ether
+
+          [Network]
+          Description=The unconfigured physical ethernet device
+
+          # Make eth0 member of these three VLANs and create virtual
+          # interfaces on it:
+          VLAN=vlan3
+          VLAN=vlan4
+
+          # In case of 'tagged only' setups, you probably don't need any IP
+          # configuration on the link without VLAN (or: default VLAN).
+          # For that just omit an [Address] section and disable all the
+          # autoconfiguration magic like this:
+          LinkLocalAddressing=no
+          LLDP=no
+          EmitLLDP=no
+          IPv6AcceptRA=no
+          IPv6SendRA=no
+
+    # Incus + ZFS
+    - path: /etc/flatcar/enabled-sysext.conf
+      contents:
+        inline: |
+          incus
+          zfs
+    - path: /etc/incus/pre-seed.yaml
+      contents:
+        inline: |
+          config: {}
+          networks:
+          - config:
+              ipv4.address: auto
+              ipv6.address: auto
+            description: ""
+            name: incusbr0
+            type: ""
+            project: default
+          storage_pools:
+          - config:
+              size: 5GiB
+            description: "Incus ZFS pool"
+            name: default
+            driver: zfs
+          profiles:
+          - config: {}
+            description: ""
+            devices:
+              eth0:
+                name: eth0
+                network: incusbr0
+                type: nic
+              root:
+                path: /
+                pool: default
+                type: disk
+            name: default
+          projects: []
+          cluster: null
+
+    # Storage init
+    - path: /usr/local/sbin/data-zpool-init.sh
+      mode: 0755
+      contents:
+        inline: |
+          #! /usr/bin/env bash
+          # documentation: https://openzfs.github.io/openzfs-docs/man/master/8/zpool-create.8.html
+
+          set -e
+
+          export ZPOOL_NAME=data
+          export ZPOOL_DISKS="/dev/sda"
+
+          function create_dataset() {
+            local dataset=$1
+            local mountpoint=$2
+
+          if ! zfs list $ZPOOL_NAME/$dataset ; then
+              zfs create $ZPOOL_NAME/$dataset
+            fi
+            zfs set mountpoint=$mountpoint dataset
+          }
+
+          function create_zpool() {
+              zpool import -a
+              if ! zpool list $ZPOOL_NAME ; then
+                zpool create -m none $ZPOOL_NAME $ZPOOL_DISKS
+              fi
+          }
+
+          create_zpool
+
+          create_dataset home /home
+
+          create_dataset var            /var
+          create_dataset var/lib        /var/lib
+          create_dataset var/lib/incus  /var/lib/incus
+          create_dataset var/log        /var/log
+
+          create_dataset srv /srv
+
+          create_dataset tmp /var/tmp
+
+  links:
+    # Remove docker
+    - path: /etc/extensions/docker-flatcar.raw
+      target: /dev/null
+      overwrite: true
+    # Remove containerd
+    - path: /etc/extensions/containerd-flatcar.raw
+      target: /dev/null
+      overwrite: true
+
+systemd:
+  units:
+    # Incus
+    - name: incus-admin-init.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=incus admin init
+        After=systemd-sysext.service
+        Requires=systemd-sysext.service
+        [Service]
+        StandardInput=file:/etc/incus/pre-seed.yaml
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/incus admin init --preseed
+        [Install]
+        WantedBy=multi-user.target
+
+    # Storage init
+    - name: create-data-zpool.service
+      enabled: true 
+      contents: |
+        [Unit]
+        After=zfs.target
+        Before=incus-admin-init.service data-zpool.mount
+        RequiresMountsFor=/home /var /srv
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/data-zpool-init.sh

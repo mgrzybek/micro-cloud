@@ -1,0 +1,7 @@
+{
+    "id": "flatcar-installer",
+    "name": "Flatcar Linux Installer",
+    "profile": "flatcar-installer",
+    "selector": {},
+    "metadata": {}
+}

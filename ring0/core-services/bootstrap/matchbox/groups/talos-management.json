@@ -1,0 +1,11 @@
+{
+    "id": "talos-management",
+    "name": "Management node",
+    "profile": "talos",
+    "selector": {
+        "hostname": "management",
+        "domain": "incus"
+    },
+    "metadata": {},
+    "ignition": ""
+}

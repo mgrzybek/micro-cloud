@@ -1,0 +1,108 @@
+---
+variant: flatcar
+version: 1.1.0
+
+passwd:
+  users:
+    - name: core
+      ssh_authorized_keys:
+        - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEq4VK7r+mAqDeMyv76WkEeSa2dJ5W3e8k4PL1MODnbG mathieu@Mac-mini.lan"
+
+
+storage:
+  files:
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: management
+
+    # Incus + ZFS
+    - path: /etc/flatcar/enabled-sysext.conf
+      contents:
+        inline: |
+          zfs
+
+    # Storage init
+    - path: /usr/local/sbin/data-zpool-init.sh
+      mode: 0755
+      contents:
+        inline: |
+          #! /usr/bin/env bash
+          # documentation: https://openzfs.github.io/openzfs-docs/man/master/8/zpool-create.8.html
+
+          set -e
+
+          export ZPOOL_NAME=data
+          export ZPOOL_DISKS="/dev/sdb"
+
+          function create_zpool() {
+              zpool import -a
+              if ! zpool list $ZPOOL_NAME ; then
+                zpool create -m none $ZPOOL_NAME $ZPOOL_DISKS
+              fi
+          }
+
+          create_zpool
+
+    - path: /etc/systemd/network/00-enp6s0.network
+      contents:
+        inline: |
+          [Match]
+          Name= enp6s0
+          Type=ether
+
+          [Network]
+          Description=The unconfigured physical ethernet device
+
+          LinkLocalAddressing=no
+          LLDP=yes
+          EmitLLDP=yes
+          IPv6AcceptRA=no
+          IPv6SendRA=no
+
+          [Address]
+          Address=192.168.2.3/24
+
+    - path: /opt/k3s-install.sh
+      mode: 0755
+      contents:
+        source: https://get.k3s.io
+
+systemd:
+  units:
+    - name: k3s-install.service
+      enabled: true 
+      contents: |
+        [Unit]
+        Description=Run K3s script
+        Wants = network-online.target
+        After = network.target network-online.target        
+        ConditionPathExists=/opt/k3s-install.sh
+        ConditionPathExists=!/opt/bin/k3s
+
+        [Service]
+        Type=forking
+        TimeoutStartSec=180
+        RemainAfterExit=yes
+        KillMode=process
+        Environment="K3S_TOKEN=1234"
+        Environment="INSTALL_K3S_EXEC=server"
+        ExecStart=/usr/bin/sh -c "/opt/k3s-install.sh"
+
+        [Install]
+        WantedBy=multi-user.target 
+
+    # Storage init
+    - name: create-data-zpool.service
+      enabled: true 
+      contents: |
+        [Unit]
+        After=zfs.target
+        RequiresMountsFor=/home /var /srv
+
+        [Install]
+        WantedBy=multi-user.target 
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/data-zpool-init.sh

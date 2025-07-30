@@ -1,0 +1,18 @@
+{
+  "id": "flatcar-management",
+  "name": "Flatcar Linux Management",
+  "boot": {
+    "kernel": "/assets/flatcar/current/flatcar_production_pxe.vmlinuz",
+    "initrd": [
+      "/assets/flatcar/current/flatcar_production_pxe_image.cpio.gz"
+    ],
+    "args": [
+      "initrd=flatcar_production_pxe_image.cpio.gz",
+      "flatcar.config.url=http://192.168.2.2:8080/ignition?uuid=${uuid}&mac=${mac:hexhyp}&hostname=${hostname}&domain=${domain}&os=installed",
+      "flatcar.first_boot=yes",
+      "flatcar.autologin",
+      "console=ttyS0"
+    ]
+  },
+  "ignition_id": "flatcar-installer.ign"
+}

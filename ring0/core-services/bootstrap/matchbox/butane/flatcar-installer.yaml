@@ -1,0 +1,85 @@
+---
+variant: flatcar
+version: 1.0.0
+
+passwd:
+  users:
+  - name: core
+    password_hash: ""
+    ssh_authorized_keys:
+      - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEq4VK7r+mAqDeMyv76WkEeSa2dJ5W3e8k4PL1MODnbG mathieu@Mac-mini.lan"
+
+systemd:
+  units:
+    - name: systemd-journal-upload.service
+      enabled: true
+
+    - name: installer.service
+      enabled: true
+      contents: |
+        [Unit]
+        Requires=network-online.target
+        After=network-online.target
+
+        [Install]
+        WantedBy=multi-user.target
+
+        [Service]
+        Type=simple
+        ExecStart=/opt/bin/installer
+
+storage:
+  files:
+#{% if journald_endpoint is defined %}
+#  - path: /etc/systemd/journal-upload.conf
+#    overwrite: true
+#    contents:
+#      inline: |
+#        [Upload]
+#        URL={% journald_endpoint %}
+#{% endif %}
+
+  - path: /opt/bin/installer
+    mode: 0500
+    contents:
+      inline: |
+        #!/bin/bash -ex
+
+        while efibootmgr | grep auto_created_boot_option ; do
+          ENTRY=$(efibootmgr | awk '/auto_created_boot_option/ {gsub("Boot","");gsub("*","");print $1}' | head -n1)
+          efibootmgr -B -b $ENTRY
+        done
+
+        while efibootmgr | grep Flatcar ; do
+          FLATCAR=$(efibootmgr | awk '/Flatcar/ {gsub("Boot","");gsub("*","");print $1}' | head -n1)
+          efibootmgr -B -b $FLATCAR
+        done
+
+        for d in /dev/sd? ; do
+          dd if=/dev/zero of=$d bs=100M count=10
+        done
+
+        install_device=/dev/sda
+        # TODO: check KVM and BHyve
+        machine=$(fgrep -q KubeVirt /sys/class/dmi/id/sys_vendor && echo vm || echo metal)
+        serial=$(cat /sys/class/dmi/id/product_serial)
+        domain=$(awk '/^search/ {print $2}' /etc/resolv.conf)
+
+        version=$(curl -s http://192.168.2.2:8080/assets/flatcar/current/version.txt | awk -F= '/FLATCAR_VERSION=/ {print $2}')
+
+        curl --retry 10 --fail "http://192.168.2.2:8080/ignition?os=installed&machine=$machine&serial=$serial&hostname=$HOSTNAME&domain=$domain" -o ignition.json
+        if [ $(cat ignition.json | jq | wc -l) -lt 10 ] ; then
+          echo "The ignition file is too small"
+        else
+          if ! test -e $install_device ; then
+            echo "The given disk $install_device does not exist"
+            exit 1
+          else
+            flatcar-install -d $install_device -C stable -V $version -b http://192.168.2.2:8080/assets/flatcar -u -i ignition.json
+            udevadm settle
+          fi
+        fi
+
+        echo "flatcar-installer: installation completed."
+
+        systemctl reboot

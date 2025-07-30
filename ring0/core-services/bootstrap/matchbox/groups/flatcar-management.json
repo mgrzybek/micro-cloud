@@ -1,0 +1,12 @@
+{
+    "id": "flatcar-management",
+    "name": "Management node",
+    "profile": "flatcar-management",
+    "selector": {
+        "hostname": "management",
+        "domain": "incus",
+        "os": "installed"
+    },
+    "metadata": {},
+    "ignition": "flatcar-management.ign"
+}

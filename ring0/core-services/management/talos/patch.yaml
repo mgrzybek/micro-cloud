@@ -1,0 +1,48 @@
+cluster:
+  allowSchedulingOnControlPlanes: true
+
+  apiServer:
+    admissionControl:
+    - name: PodSecurity
+      configuration:
+        apiVersion: pod-security.admission.config.k8s.io/v1beta1
+        kind: PodSecurityConfiguration
+        exemptions:
+          namespaces:
+          - local-path-storage
+          - tailscale
+
+  discovery:
+    enabled: false
+  network:
+    cni:
+      name: none
+  proxy:
+    disabled: true
+
+machine:
+  time:
+    disabled: false
+    servers:
+    - 192.168.0.1
+    - ntp0.ovh.net 
+    - time.cloudflare.com
+    - time.google.com
+    bootTimeout: 2m0s
+  network:
+    hostname: management # Used to statically set the hostname for the machine.
+    interfaces:
+    - interface: enp6s0
+      # Assigns static IP addresses to the interface.
+      addresses:
+      - 192.168.2.3/24
+
+  kubelet:
+    extraMounts:
+    - destination: /var/local
+      type: bind
+      source: /var/local
+      options:
+      - bind
+      - rshared
+      - rw

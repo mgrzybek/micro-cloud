@@ -1,0 +1,169 @@
+#! /usr/bin/env bash
+
+set -e 
+
+source common.sh 
+
+BUFFER=$(mktemp -d)
+INSTANCE=bootstrap
+PKI_ROOT=/var/lib/pki/files
+
+print_check "Checking variables"
+
+if [[ -z "$BRIDGE_NAME" ]] ; then
+    echo "BRIDGE_NAME must be defined".
+    exit 1
+else
+    if ! incus network show $BRIDGE_NAME ; then
+        echo "$BRIDGE_NAME not foun. Please choose an existing bridge."
+        incus network list
+        exit 1
+    fi
+fi
+
+if [[ -z "$BRIDGE_VLAN" ]] ; then
+    echo "BRIDGE_VLAN must be defined".
+    exit 1
+fi
+
+if [[ -z "$PHYS_IFACE" ]] ; then
+    echo "PHYS_IFACE must be defined".
+    exit 1
+else
+    if ! incus network show $BRIDGE_NAME ; then
+        echo "$BRIDGE_NAME not found. Please choose an existing interface."
+        incus network list
+        exit 1
+    fi
+fi
+
+if [[ -z "$IFACE_IPADDR_CIDR" ]] ; then
+    echo "IFACE_IPADDR_CIDR must be defined"
+    exit 1
+fi
+
+if [[ -z "$TALOS_FACTORY_UUID" ]] ; then
+    echo "TALOS_FACTOR_UUID must be defined"
+    exit 1
+fi
+
+if [[ -z "$TALOS_VERSION" ]] ; then
+    echo "TALOS_VERSION must be defined"
+    exit 1
+fi
+
+if [[ -z "$TALOS_FACTORY_URL" ]] ; then
+    echo "$TALOS_FACTORY_URL must be defined"
+    exit 1
+fi
+
+
+function main() {
+    prepare
+    push_csr
+    create_certificates
+    pull_certificates
+    push_certificates
+
+    configure_instance
+}
+
+function prepare() {
+    export TLD=$(tailscale dns status | awk '/MagicDNS:/ {gsub(")","") ; print $NF}')
+    if [[ -z "$TLD" ]] ; then
+        echo "Error getting Tailscale's TLD"
+        exit 1
+    fi
+
+    cat << EOF | tee dist/$INSTANCE.sh
+SERVER_ADDR=$SERVER_ADDR
+SERVER_CIDR=$IFACE_IPADDR_CIDR
+NTP_ADDR=$SERVER_ADDR
+LOG_ADDR=$SERVER_ADDR
+
+TALOS_FACTORY_UUID=$TALOS_FACTORY_UUID
+TALOS_VERSION=$TALOS_VERSION
+TALOS_FACTORY_URL=$TALOS_FACTORY_URL
+EOF
+
+    export SERVER_ADDR=$(echo "$IFACE_IPADDR_CIDR" | awk -F/ '{print $1}')
+}
+
+function create_instance() {
+    # documentation: https://technicallyrambling.calmatlas.com/create-vlan-aware-incus-bridge-for-dhcp-passthrough/
+    print_milestone "Creating networking"
+
+    if ! incus network list | grep -q $BRIDGE_NAME ; then
+        incus network create "$BRIDGE_NAME" --type=bridge \
+            bridge.external_interfaces=$PHYS_IFACE.$BRIDGE_VLAN/$PHYS_IFACE/$BRIDGE_VLAN \
+            ipv4.address=none \
+            ipv6.address=none
+    fi
+
+    print_milestone "Deploying on $INSTANCE instance"
+
+    if ! incus list $NAME -f yaml | grep -q name: ; then
+        incus create -v images:debian/12 "$NAME"
+        incus config device add "$INSTANCE" eth1 nic network="$BRIDGE_NAME"
+        incus start "$INSTANCE"
+        incus exec $INSTANCE -- "ip addr add dev eth1 $IFACE_IPADDR_CIDR"
+    fi
+}
+
+function configure_instance() {
+    incus file push dist/$INSTANCE.sh bootstrap/etc/cloud.sh
+    incus exec $INSTANCE -- bash < core-services/bootstrap/debian-$INSTANCE-cloud-init.sh
+}
+
+function push_csr() {
+    local CSR="$INSTANCE.$TLD-csr.json"
+
+    cat << EOF > "$BUFFER/$CSR"
+{
+  "CN": "$INSTANCE.$TLD",
+  "hosts": [
+    "$INSTANCE",
+    "matchbox",
+    "$SERVER_ADDR"
+  ],
+  "names": [
+    {
+      "C": "FR",
+      "L": "Paris",
+      "O": "Mushroom Cloud",
+      "OU": "CA Services"
+    }
+  ]
+}
+EOF
+
+    incus file push "$BUFFER/$CSR" "pki/$PKI_ROOT/certificates/$CSR"
+}
+
+function create_certificates() {
+    print_milestone "Creating certificates"
+
+    echo "$PKI_ROOT/../create-certificates.sh" | incus exec pki -- bash
+}
+
+function pull_certificates() {
+    print_milestone "Pulling files"
+
+    incus file pull pki/$PKI_ROOT/certificates/$INSTANCE.$TLD.pem $BUFFER/
+    incus file pull pki/$PKI_ROOT/certificates/$INSTANCE.$TLD-key.pem $BUFFER/
+}
+
+function push_certificates() {
+    print_milestone "Pushing files"
+
+    echo "mkdir -p /etc/matchbox/ssl" | incus exec bootstrap -- bash
+    incus file push $BUFFER/$INSTANCE.$TLD.pem bootstrap/etc/matchbox/ssl/server.crt
+    incus file push $BUFFER/$INSTANCE.$TLD-key.pem bootstrap/etc/matchbox/ssl/server.key
+
+    rm -rf $BUFFER
+
+    print_check "Checking files"
+    echo "find /etc/matchbox/ssl" | incus exec bootstrap -- bash
+}
+
+main "$@"

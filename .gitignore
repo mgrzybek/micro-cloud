@@ -1,0 +1,6 @@
+# Distribution artifacts
+dist/
+
+# PKI
+*.pem
+*.csr

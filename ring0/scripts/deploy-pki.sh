@@ -1,0 +1,168 @@
+#! /usr/bin/env bash
+
+set -e
+
+INSTANCE=pki
+PKI_ROOT=/var/lib/pki
+
+RING0_ROOT="$(dirname $0)/.."
+
+source common.sh
+
+function main() {
+    prepare
+
+    create_instance
+
+    create_ca
+    create_pki_csr
+    create_certificates
+
+    start_multirootca
+}
+
+function prepare() {
+    export SUFFIX=$(tailscale dns status | awk '/MagicDNS:/ {gsub(")","") ; print $NF}')
+
+    if [[ -z "$SUFFIX" ]] ; then
+        echo "Error getting Tailscale's SUFFIX"
+        exit 1
+    fi
+
+}
+
+function create_instance() {
+    print_milestone "Deploying the PKI"
+
+    incus list $INSTANCE -f yaml | grep -q name: || incus launch images:debian/12 $INSTANCE
+
+    echo "echo SUFFIX=$SUFFIX | tee /etc/cloud.sh" | incus exec $INSTANCE -- bash
+    incus exec $INSTANCE -- bash < $RING0_ROOT/core-services/$INSTANCE/debian-$INSTANCE-cloud-init.sh
+
+    print_check "The PKI instance is ready to be configured"
+}
+
+function create_ca() {
+    print_milestone "Configuring the PKI"
+
+    result=$(incus exec pki -- find $PKI_ROOT/files/intermediate/intermediate-fullchain.pem)
+
+    if [[ -z "$result" ]] ; then
+        print_milestone "Sending files to the PKI instance"
+
+        if [[ ! -f "$RING0_ROOT/core-services/pki/files/root/root-csr.json" ]] ; then
+            echo "$RING0_ROOT/core-services/pki/files/root/root-csr.json must exist"
+            return 1
+        fi
+
+        if [[ ! -f "$RING0_ROOT/core-services/pki/files/intermediate/intermediate-csr.json" ]] ; then
+            echo "$RING0_ROOT/core-services/pki/files/intermediate/intermediate-csr.json must exist"
+            return 1
+        fi
+
+        BUFFER=$(mktemp)
+        incus exec pki -- mkdir -p $PKI_ROOT
+
+        cd $RING0_ROOT/core-services/pki
+        tar cvf $BUFFER .
+        cd -
+
+        incus file push $BUFFER pki$PKI_ROOT/pki.tar
+        echo "cd $PKI_ROOT && tar xf pki.tar" | incus exec pki -- bash
+        rm -f $BUFFER
+
+        print_milestone "CA fullchain"
+
+        echo "make -C $PKI_ROOT files/intermediate/intermediate-fullchain.pem" | incus exec pki -- bash
+    else
+        print_check "$result already exist"
+        print_check "The PKI has already been bootstrapped"
+    fi
+
+    print_milestone "Getting the intermediate CA"
+
+    mkdir -p dist
+    echo "cat $PKI_ROOT/files/intermediate/intermediate-fullchain.pem" | incus exec pki -- bash > dist/intermediate-fullchain.pem
+    find $RING0_ROOT/dist/intermediate-fullchain.pem
+}
+
+function start_multirootca() {
+    print_milestone "Create the auth key for the webservice"
+
+    auth_key=$(openssl rand -hex 16)
+    echo $auth_key > $RING0_ROOT/dist/auth.key
+
+    print_milestone "Configuring multirootca"
+
+    cat << EOF > $RING0_ROOT/dist/config.json
+{
+    "signing": {
+        "default": {
+            "expiry": "8760h"
+        },
+        "profiles": {
+            "intermediate": {
+                "usages": ["cert sign", "crl sign"],
+                "expiry": "70080h",
+                "ca_constraint": {
+                    "is_ca": true,
+                    "max_path_len": 1
+                }
+            },
+            "host": {
+                "usages": ["signing", "digital signing", "key encipherment", "server auth", "client auth"],
+                "expiry": "8760h",
+                "auth_key": "default"
+            }
+        }
+    },
+    "auth_keys": {
+        "default": {
+            "key": "$auth_key",
+            "type": "standard"
+        }
+    }
+}
+EOF
+
+    incus file push $RING0_ROOT/dist/config.json pki$PKI_ROOT/files/config/config.json
+
+    echo "systemctl enable multirootca.service" | incus exec $INSTANCE -- bash
+    incus restart $INSTANCE
+
+    print_check "Checking multirootca status"
+    sleep 5
+    echo "systemctl status multirootca.service" | incus exec $INSTANCE -- bash
+}
+
+function create_pki_csr() {
+    print_milestone "Creating the CSR profile for $INSTANCE.$SUFFIX"
+
+    hosts=$(incus list | awk "/$INSTANCE/ {print \$6}")
+
+    cat << EOF > $RING0_ROOT/dist/$INSTANCE.$SUFFIX-csr.json
+{
+  "CN": "$INSTANCE.$SUFFIX",
+  "hosts": [
+    "$hosts"
+  ],
+  "names": [
+    {
+      "C": "FR",
+      "L": "Paris",
+      "O": "Mushroom Cloud",
+      "OU": "CA Services"
+    }
+  ]
+}
+EOF
+    incus file push $RING0_ROOT/dist/$INSTANCE.$SUFFIX-csr.json pki$PKI_ROOT/files/certificates/$INSTANCE.$SUFFIX.csr.json
+}
+
+function create_certificates() {
+    print_milestone "Creating certificates"
+
+    echo "$PKI_ROOT/create-certificates.sh $SUFFIX" | incus exec $INSTANCE -- bash
+}
+
+main "$@"

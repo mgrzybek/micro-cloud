@@ -1,0 +1,27 @@
+{
+  "id": "talos",
+  "name": "Talos Linux live instance",
+  "boot": {
+    "kernel": "/assets/talos/kernel-amd64",
+    "initrd": [
+        "/assets/talos/initramfs-amd64.xz"
+    ],
+    "args": [
+        "talos.platform=metal",
+        "talos.config=http://192.168.2.2:8080/assets/talos/${hostname}.yaml",
+        "console=tty0",
+        "console=ttyS0",
+        "init_on_alloc=1",
+        "slab_nomerge",
+        "pti=on",
+        "consoleblank=0",
+        "nvme_core.io_timeout=4294967295",
+        "printk.devkmsg=on",
+        "ima_template=ima-ng",
+        "ima_appraise=fix",
+        "ima_hash=sha512",
+        "selinux=1"
+    ]
+},
+  "ignition_id": ""
+}
