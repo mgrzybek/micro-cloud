@@ -62,16 +62,37 @@ function main() {
     deploy_instance
     bootstrap_kubernetes
 
+    if ! helm list -n kube-system | grep cilium | grep deployed ; then
+        install_cilium
+    fi
+
+    if ! helm list -n cert-manager | grep -q cert-manager ; then
+        install_cert_manager
+    fi
+
+    install_local_path_provisioner
+
+    if ! helm list -n cnpg-system | grep -q cnpg ; then
+        install_cnpg
+    fi
+
 	print_check "Deployment ended successfully"
 }
 
 function prepare() {
     if [[ "$(uname)" == "Darwin" ]] ; then
-        SED=gsed
+        export SED=gsed
     else
-        SED=sed
+        export SED=sed
     fi
     export TARGET_HOME=$(ssh $TARGET pwd)
+
+    export PKI_IPADDR=$(incus list | awk '/pki/ {print $6}')
+    export PKI_ENDPOINT=https://$PKI_IPADDR:8000
+
+    helm repo add jetstack https://charts.jetstack.io
+	helm repo add cnpg https://cloudnative-pg.github.io/charts
+    helm repo update
 }
 
 function install_ipxe() {
@@ -279,5 +300,40 @@ function bootstrap_kubernetes() {
 	print_check "Cluster available"
     kubectl cluster-info
 } 
+
+function install_cilium() {
+    print_milestone "Installing cilium"
+
+    local GW_API_VERSION=v1.2.0
+
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
+    kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
+
+    cilium install --values $MANIFESTS_PATH/00-cilium/values.yaml --wait
+}
+
+function install_cert_manager() {
+    print_milestone "Installing cert-manager"
+
+    helm install cert-manager jetstack/cert-manager --create-namespace --namespace cert-manager --set crds.enabled=true --set "extraArgs={--enable-gateway-api}"
+}
+
+function install_local_path_provisioner() {
+    print_milestone "Installing local path provisioner"
+
+    local PROVISIONER_VERSION=v0.0.31
+
+    curl -o $MANIFESTS_PATH/01-storage/local-path-storage.yaml https://raw.githubusercontent.com/rancher/local-path-provisioner/$PROVISIONER_VERSION/deploy/local-path-storage.yaml
+    kubectl apply --wait -k $MANIFESTS_PATH/01-storage/
+}
+
+function install_cnpg() {
+    print_milestone "Installing cnpg"
+
+    helm install cnpg --wait --create-namespace --namespace cnpg-system cnpg/cloudnative-pg
+}
 
 main "$@"
