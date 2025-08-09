@@ -1,0 +1,18 @@
+---
+
+defaultLanguage: fr-fr
+
+postgresql:
+  enabled: false
+
+externalDatabase:
+  existingSecretName: tooling-app
+  existingSecretKey: password
+  host: tooling-rw
+  port: 5432
+  username: app
+  database: netbox
+
+valkey:
+  architecture: standalone
+

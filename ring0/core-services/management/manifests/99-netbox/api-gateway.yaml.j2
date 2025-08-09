@@ -1,0 +1,86 @@
+{% if ip_address | length > 0 %}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: cmdb-endpoint
+  namespace: platform-management
+spec:
+  secretName: cmdb-endpoint
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  subject:
+    organizations:
+      - {{pki_org}}
+  commonName: cmdb.{{ts_suffix}}
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  usages:
+    - server auth
+  dnsNames:
+    - cmdb.{{ts_suffix}}
+  uris:
+    - spiffe://cluster.local/ns/default/sa/default
+  ipAddresses:
+    - {{ip_address}}
+  issuerRef:
+    name: cfssl-internal-ca
+    kind: ClusterIssuer
+    group: cfssl-issuer.wikimedia.org
+{% endif %}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: cmdb
+  namespace: platform-management
+spec:
+  gatewayClassName: cilium
+  listeners:
+{% if ip_address | length > 0 %}
+  - protocol: HTTPS
+    port: 8443
+    name: platform-gateway-https
+    allowedRoutes:
+      namespaces:
+        from: Same
+    hostname: cmdb.{{ts_suffix}}
+    tls:
+      certificateRefs:
+      - kind: Secret
+        name: cmdb-endpoint
+{% else %}
+  - protocol: HTTP
+    port: 8080
+    name: platform-gateway-http
+    allowedRoutes:
+      namespaces:
+        from: Same
+    hostname: cmdb.{{ts_suffix}}
+{% endif %}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-netbox
+  namespace: platform-management
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: cmdb
+    namespace: platform-management
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: netbox
+      port: 80
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
