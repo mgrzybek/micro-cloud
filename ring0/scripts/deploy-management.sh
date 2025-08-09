@@ -433,7 +433,7 @@ EOF
 	kubectl annotate -n platform-management svc/cilium-gateway-idp tailscale.com/hostname=idp
 	kubectl annotate -n platform-management svc/cilium-gateway-idp tailscale.com/expose=true
 
-	# Then, get the tailnet IP address, cerate the certificate and configure the HTTPS endpoint
+	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
 	local svc_ip_addr=$(tailscale status | grep -w idp | awk '{print $1}')
 	jinja2 --strict \
 		-D ip_address=$svc_ip_addr -D ts_suffix=$TS_SUFFIX -D pki_org=$PKI_ORG \
@@ -460,7 +460,7 @@ function install_netbox() {
 	kubectl annotate -n platform-management svc/cilium-gateway-cmdb tailscale.com/hostname=cmdb
 	kubectl annotate -n platform-management svc/cilium-gateway-cmdb tailscale.com/expose=true
 
-	# Then, get the tailnet IP address, cerate the certificate and configure the HTTPS endpoint
+	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
 	local svc_ip_addr=$(tailscale status | grep -w cmdb | awk '{print $1}')
 	jinja2 --strict \
 		-D ip_address=$svc_ip_addr -D ts_suffix=$TS_SUFFIX -D pki_org=$PKI_ORG \
