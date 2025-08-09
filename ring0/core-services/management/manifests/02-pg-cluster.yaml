@@ -1,0 +1,50 @@
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: tooling
+  namespace: platform-management
+spec:
+  instances: 1
+  storage:
+    size: 5Gi
+
+  managed:
+    roles:
+    - name: app
+      createdb: true
+      createrole: true
+      login: true
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: netbox
+  namespace: platform-management
+spec:
+  name: netbox
+  owner: app
+  cluster:
+    name: tooling
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: kamaji
+  namespace: platform-management
+spec:
+  name: kamaji
+  owner: app
+  cluster:
+    name: tooling
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: zitadel
+  namespace: platform-management
+spec:
+  name: zitadel
+  owner: app
+  cluster:
+    name: tooling

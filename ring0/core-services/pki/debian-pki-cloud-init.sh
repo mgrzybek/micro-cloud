@@ -2,97 +2,97 @@
 
 source /etc/cloud.sh
 
-if [[ -z "$TLD" ]] ; then
-    echo "TLD must be given as argument"
-    exit 1
+if [[ -z "$TLD" ]]; then
+	echo "TLD must be given as argument"
+	exit 1
 fi
 
 function main() {
-    set -e
+	set -e
 
-    prepare
+	prepare
 
-    if ! which go ; then
-        install_go
-    fi
+	if ! which go; then
+		install_go
+	fi
 
-    if ! which cfssl ; then
-        install_cfssl
-    fi
+	if ! which cfssl; then
+		install_cfssl
+	fi
 
-    configure_multirootca
+	configure_multirootca
 
-    echo "✔ cloud-init ended successfully"
+	echo "✔ cloud-init ended successfully"
 }
 
 function prepare() {
-    echo "#####################"
-    echo "👷 Preparing the environment"
+	echo "#####################"
+	echo "👷 Preparing the environment"
 
-    apt update
-    apt -y install jq
-    export HOME=/root
-    export pki=/var/lib/pki/files
+	apt update
+	apt -y install jq
+	export HOME=/root
+	export pki=/var/lib/pki/files
 }
 
 function install_go() {
-    echo "#####################"
-    echo "👷 Installing go"
+	echo "#####################"
+	echo "👷 Installing go"
 
-    apt install -y make wget
+	apt install -y make wget
 
-    export PATH=$PATH:/usr/local/go/bin
-    export GO_ARCHIVE=go1.24.4.linux-amd64.tar.gz
+	export PATH=$PATH:/usr/local/go/bin
+	export GO_ARCHIVE=go1.24.4.linux-amd64.tar.gz
 
-    if [[ ! -f "$GO_ARCHIVE" ]] ; then
-       cd ~
-       wget "https://go.dev/dl/$GO_ARCHIVE"
-       rm -rf /usr/local/go && tar -C /usr/local -xzf "$GO_ARCHIVE"
-       cd -
-    fi
+	if [[ ! -f "$GO_ARCHIVE" ]]; then
+		cd ~
+		wget "https://go.dev/dl/$GO_ARCHIVE"
+		rm -rf /usr/local/go && tar -C /usr/local -xzf "$GO_ARCHIVE"
+		cd -
+	fi
 
-    echo "export PATH=$PATH:/usr/local/go/bin" >> /etc/profile
+	echo "export PATH=$PATH:/usr/local/go/bin" >>/etc/profile
 
-    rm -rf /tmp/go-build*
+	rm -rf /tmp/go-build*
 
-    echo
-    echo "✔ Checking binaries and services"
-    which go
-    go version
-    echo
+	echo
+	echo "✔ Checking binaries and services"
+	which go
+	go version
+	echo
 }
 
 function install_cfssl() {
-    echo "#####################"
-    echo "👷 Installing cfssl"
+	echo "#####################"
+	echo "👷 Installing cfssl"
 
-    apt install -y git make
+	apt install -y git make
 
-    cd ~
-    if [[ ! -d cfssl ]] ; then
-        git clone https://github.com/wikimedia/cfssl.git
-        cd cfssl
-        git switch wmf
-        make all
-        cp bin/* /usr/local/bin
-        rm -rf /tmp/go-build*
-    fi
+	cd ~
+	if [[ ! -d cfssl ]]; then
+		git clone https://github.com/wikimedia/cfssl.git
+		cd cfssl
+		git switch wmf
+		make all
+		cp bin/* /usr/local/bin
+		rm -rf /tmp/go-build*
+	fi
 
-    mkdir -p $pki/{root,intermediate,config,certificates}
+	mkdir -p $pki/{root,intermediate,config,certificates}
 }
 
 function configure_multirootca() {
-    echo "#####################"
-    echo "👷 Configuring multirootca"
+	echo "#####################"
+	echo "👷 Configuring multirootca"
 
-    cat <<EOF > $pki/config/multiroot-profile.ini
+	cat <<EOF >$pki/config/multiroot-profile.ini
 [microcloud]
 private = file://$pki/intermediate/intermediate-ca-key.pem
 certificate = $pki/intermediate/intermediate-ca.pem
 config = $pki/config/config.json
 EOF
 
-    cat <<EOF > /etc/systemd/system/multirootca.service
+	cat <<EOF >/etc/systemd/system/multirootca.service
 [Unit]
 Description=CFSSL PKI Certificate Authority
 After=network-online.target
@@ -105,13 +105,13 @@ Type=simple
 [Install]
 WantedBy=multi-user.target
 EOF
-    systemctl daemon-reload
+	systemctl daemon-reload
 
-    echo "#####################"
-    echo "✔ Checking binaries and services"
-    which cfssl
-    which multirootca
-    echo
+	echo "#####################"
+	echo "✔ Checking binaries and services"
+	which cfssl
+	which multirootca
+	echo
 }
 
 main
