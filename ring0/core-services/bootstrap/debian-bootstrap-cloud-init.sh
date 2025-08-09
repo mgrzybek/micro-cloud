@@ -30,15 +30,15 @@ function install_go() {
 	export PATH=$PATH:/usr/local/go/bin
 	export GO_ARCHIVE=go1.24.4.linux-amd64.tar.gz
 
-	if ! which go ; then
-		if [[ ! -f "$GO_ARCHIVE" ]] ; then
+	if ! which go; then
+		if [[ ! -f "$GO_ARCHIVE" ]]; then
 			cd ~
 			wget "https://go.dev/dl/$GO_ARCHIVE"
 			rm -rf /usr/local/go && tar -C /usr/local -xzf "$GO_ARCHIVE"
 			cd -
 		fi
 
-		echo "export PATH=$PATH:/usr/local/go/bin" >> /etc/profile
+		echo "export PATH=$PATH:/usr/local/go/bin" >>/etc/profile
 
 		rm -rf /tmp/go-build*
 	fi
@@ -55,7 +55,7 @@ function install_kea() {
 	echo "#####################"
 	echo "👷 Installing kea dhcp server"
 
-	if ! which /usr/sbin/kea-dhcp4 ; then
+	if ! which /usr/sbin/kea-dhcp4; then
 		mkdir -p /etc/systemd/system/kea-dhcp4-server.d
 		cat <<EOF | tee /etc/systemd/system/kea-dhcp4-server.d/networking.conf
 [Service]
@@ -64,7 +64,7 @@ EOF
 
 		apt install -y kea
 
-	   	cat <<EOF | tee /etc/kea/kea-dhcp4.conf
+		cat <<EOF | tee /etc/kea/kea-dhcp4.conf
 {
     "Dhcp4": {
         "valid-lifetime": 4000,
@@ -124,8 +124,8 @@ EOF
 EOF
 		systemctl daemon-reload
 
-    	systemctl enable bootstrap-network.service
-    	systemctl start bootstrap-network.service
+		systemctl enable bootstrap-network.service
+		systemctl start bootstrap-network.service
 
 		systemctl disable kea-ctrl-agent.service kea-dhcp-ddns-server.service
 		systemctl stop kea-ctrl-agent.service kea-dhcp-ddns-server.service
@@ -143,13 +143,13 @@ function install_matchbox() {
 	echo "#####################"
 	echo "👷 Installing matchbox"
 
-	if ! which matchbox ; then
+	if ! which matchbox; then
 		cd ~
 
-		if ! grep -q matchbox /etc/group ; then
+		if ! grep -q matchbox /etc/group; then
 			groupadd matchbox
 		fi
-		if ! grep -q matchbox /etc/passwd ; then
+		if ! grep -q matchbox /etc/passwd; then
 			useradd -M -d /var/lib/matchbox -g matchbox matchbox
 		fi
 
@@ -157,7 +157,7 @@ function install_matchbox() {
 		chown -R matchbox:matchbox /var/lib/matchbox
 
 		latest_tag=$(curl -v https://github.com/poseidon/matchbox/releases/latest/download/matchbox 2>&1 | awk -F/ '/location/ {print $(NF-1)}')
-		if [[ ! -d matchbox ]] ; then
+		if [[ ! -d matchbox ]]; then
 			git clone --branch "$latest_tag" https://github.com/poseidon/matchbox.git
 		fi
 
@@ -185,7 +185,7 @@ function install_machinecfg() {
 
 	cd ~
 
-	if [[ ! -d machinecfg ]] ; then
+	if [[ ! -d machinecfg ]]; then
 		git clone https://github.com/mgrzybek/machinecfg.git
 	fi
 
@@ -208,7 +208,7 @@ function install_butane() {
 
 	cd ~
 
-	if ! which butane ; then
+	if ! which butane; then
 		latest_tag=$(curl -v https://github.com/coreos/butane/releases/latest/download/butane 2>&1 | awk -F/ '/location/ {print $(NF-1)}')
 
 		cd /usr/local/bin
@@ -229,7 +229,7 @@ function install_talosctl {
 
 	cd ~
 
-	if ! which talosctl ; then
+	if ! which talosctl; then
 		latest_tag=$(curl -v https://github.com/siderolabs/talos/releases/latest/download/talosctl 2>&1 | awk -F/ '/location/ {print $(NF-1)}')
 
 		cd /usr/local/bin
@@ -251,27 +251,27 @@ function prepare() {
 	echo "#####################"
 	echo "👷 Preparing the environment"
 
-    export HOME=/root
+	export HOME=/root
 
 	CLOUD_CONFIG=/etc/cloud.sh
 
-	if [[ ! -f "$CLOUD_CONFIG" ]] ; then
+	if [[ ! -f "$CLOUD_CONFIG" ]]; then
 		echo "$CLOUD_CONFIG must be present"
 		exit 1
 	fi
 
 	source "$CLOUD_CONFIG"
 
-	if [[ -z "$SERVER_ADDR" ]] ; then
+	if [[ -z "$SERVER_ADDR" ]]; then
 		echo "SERVER_ADDR must be given"
 	fi
 
-	if ! which curl ; then
+	if ! which curl; then
 		apt update
 		apt -y install curl git make wget gcc liblzma-dev
 	fi
 
-	if ! ip addr show | grep -q "$SERVER_ADDR" ; then
+	if ! ip addr show | grep -q "$SERVER_ADDR"; then
 		echo "#####################"
 		echo "👷 Configuring the netboot iface"
 
@@ -301,7 +301,7 @@ function prepare_matchbox_ipxe() {
 	mkdir -p $assets
 
 	cd ~
-	if [[ ! -d ipxe ]] ; then
+	if [[ ! -d ipxe ]]; then
 		git clone https://github.com/ipxe/ipxe.git
 	fi
 	cd ipxe/src
@@ -318,15 +318,15 @@ function download_talos() {
 	download_if_needed "$TALOS_FACTORY_URL/image/$TALOS_FACTORY_UUID/$TALOS_VERSION" "kernel-amd64"
 	download_if_needed "$TALOS_FACTORY_URL/image/$TALOS_FACTORY_UUID/$TALOS_VERSION" "initramfs-amd64.xz"
 
-	echo "VERSION=$TALOS_VERSION" > talos.conf
-	echo "FACTORY_UUID=$TALOS_FACTORY_UUID" >> talos.conf
+	echo "VERSION=$TALOS_VERSION" >talos.conf
+	echo "FACTORY_UUID=$TALOS_FACTORY_UUID" >>talos.conf
 }
 
 function download_if_needed() {
 	local base_url=$1
 	local file=$2
 
-	if [[ ! -f "$file" ]] ; then
+	if [[ ! -f "$file" ]]; then
 		wget "$base_url/$file"
 	fi
 }
@@ -342,14 +342,14 @@ function prepare_matchbox_talos() {
 	mkdir -p $assets/talos
 	cd $assets/talos
 
-	if [ -f talos.conf ] ; then
+	if [ -f talos.conf ]; then
 		source talos.conf
 
-		if [[ ! "$VERSION" == "$TALOS_VERSION" ]] ; then
+		if [[ ! "$VERSION" == "$TALOS_VERSION" ]]; then
 			rm -f kerned-amd64 initramfs-amd64.xz
 		fi
 
-		if [[ ! "$FACTORY_UUID" == "$TALOS_FACTORY_UUID" ]] ; then
+		if [[ ! "$FACTORY_UUID" == "$TALOS_FACTORY_UUID" ]]; then
 			rm -f kerned-amd64 initramfs-amd64.xz
 		fi
 	else
@@ -358,7 +358,7 @@ function prepare_matchbox_talos() {
 
 	download_talos
 
-  cat <<EOF > "$profiles/talos.json"
+	cat <<EOF >"$profiles/talos.json"
 {
   "id": "talos",
   "name": "Talos Linux live instance",
@@ -388,7 +388,7 @@ function prepare_matchbox_talos() {
 }
 EOF
 
-  cat <<EOF > "$groups/talos.json"
+	cat <<EOF >"$groups/talos.json"
 {
   "id": "talos",
   "name": "Talos Linux",
@@ -398,10 +398,10 @@ EOF
 }
 EOF
 
-  echo
-  echo "✔ Checking files"
-  find /var/lib/matchbox
-  echo
+	echo
+	echo "✔ Checking files"
+	find /var/lib/matchbox
+	echo
 }
 
 function prepare_matchbox_flatcar() {
@@ -424,7 +424,7 @@ function prepare_matchbox_flatcar() {
 
 	cd "$assets"
 	mkdir -p "$assets/$version"
-	if [[ ! -e current ]] ; then
+	if [[ ! -e current ]]; then
 		ln -s "$version" current
 	fi
 
@@ -437,11 +437,10 @@ function prepare_matchbox_flatcar() {
 	download_if_needed "$base_url" "flatcar_production_image.bin.bz2"
 	download_if_needed "$base_url" "flatcar_production_image.bin.bz2.sig"
 
-  echo "✔ Checking binaries"
-  find $assets
-  echo
+	echo "✔ Checking binaries"
+	find $assets
+	echo
 }
-
 
 ############################################################################
 # Main
