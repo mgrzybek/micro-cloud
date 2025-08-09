@@ -43,7 +43,7 @@ spec:
 {% if ip_address | length > 0 %}
   - protocol: HTTPS
     port: 8443
-    name: platform-gateway-https
+    name: idp-https
     allowedRoutes:
       namespaces:
         from: Same
@@ -55,7 +55,7 @@ spec:
 {% else %}
   - protocol: HTTP
     port: 8080
-    name: platform-gateway-http
+    name: idp-http
     allowedRoutes:
       namespaces:
         from: Same

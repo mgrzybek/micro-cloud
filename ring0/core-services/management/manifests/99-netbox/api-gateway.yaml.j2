@@ -42,8 +42,8 @@ spec:
   listeners:
 {% if ip_address | length > 0 %}
   - protocol: HTTPS
-    port: 8443
-    name: platform-gateway-https
+    port: 9443
+    name: cmdb-https
     allowedRoutes:
       namespaces:
         from: Same
@@ -54,8 +54,8 @@ spec:
         name: cmdb-endpoint
 {% else %}
   - protocol: HTTP
-    port: 8080
-    name: platform-gateway-http
+    port: 9080
+    name: cmdb-http
     allowedRoutes:
       namespaces:
         from: Same
