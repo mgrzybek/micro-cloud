@@ -41,10 +41,10 @@ spec:
 apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
-  name: zitadel
+  name: authentik
   namespace: platform-management
 spec:
-  name: zitadel
+  name: authentik
   owner: app
   cluster:
     name: tooling

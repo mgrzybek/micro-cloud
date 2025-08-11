@@ -90,8 +90,9 @@ function main() {
 
 	install_database
 
-	if ! helm list -n platform-management | grep -q zitadel; then
-		install_zitadel
+	if ! helm list -n platform-management | grep -q authentik; then
+		install_idp_api_gateway
+		install_authentik
 	fi
 
 	if ! helm list -n platform-management | grep -q netbox; then
@@ -113,6 +114,7 @@ function prepare() {
 
 	helm repo add jetstack https://charts.jetstack.io
 	helm repo add cnpg https://cloudnative-pg.github.io/charts
+	helm repo add authentik https://charts.goauthentik.io
 	helm repo update
 }
 
@@ -407,50 +409,6 @@ function install_database() {
 	kubectl wait --for=condition=Ready cluster/tooling -n platform-management --timeout=600s
 }
 
-function install_zitadel() {
-	print_milestone "Installing zitadel"
-
-	export LC_ALL=C
-
-	if ! kubectl get secrets -n platform-management existing-zitadel-masterkey; then
-		masterkey=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 32 | base64)
-		cat <<EOF | kubectl apply --wait -f -
-apiVersion: v1
-kind: Secret
-metadata:
-  name: existing-zitadel-masterkey
-  namespace: platform-management
-data:
-    masterkey: $masterkey
-EOF
-	fi
-
-	# First let's create the service without certificate to get the tailnet IP address
-	jinja2 --strict \
-		-D ip_address= -D ts_suffix=$TS_SUFFIX -D pki_org=$PKI_ORG \
-		$MANIFESTS_PATH/99-zitadel/api-gateway.yaml \
-		-o $RING0_ROOT/dist/idp-api-gateway.yaml
-	kubectl apply --wait -f $RING0_ROOT/dist/idp-api-gateway.yaml
-	kubectl annotate -n platform-management svc/cilium-gateway-idp tailscale.com/hostname=idp
-	kubectl annotate -n platform-management svc/cilium-gateway-idp tailscale.com/expose=true
-
-	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
-	local svc_ip_addr=$(tailscale status | grep -w idp | awk '{print $1}')
-	jinja2 --strict \
-		-D ip_address=$svc_ip_addr -D ts_suffix=$TS_SUFFIX -D pki_org=$PKI_ORG \
-		$MANIFESTS_PATH/99-zitadel/api-gateway.yaml.j2 \
-		-o $RING0_ROOT/dist/idp-api-gateway.yaml
-	kubectl apply --wait -f $RING0_ROOT/dist/idp-api-gateway.yaml
-
-	jinja2 --strict \
-		-D ts_suffix=$TS_SUFFIX \
-		-D username=admin@idp.$TS_SUFFIX \
-		-D password=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 12 | base64) \
-		$MANIFESTS_PATH/99-zitadel/values.yaml.j2 \
-		-o $RING0_ROOT/dist/zitadel-values.yaml
-	helm install idp zitadel/zitadel --namespace=platform-management --values $RING0_ROOT/dist/zitadel-values.yaml --timeout=600s
-}
-
 function install_netbox() {
 	print_milestone "Installing netbox"
 
@@ -475,6 +433,42 @@ function install_netbox() {
 		--namespace platform-management \
 		--values $MANIFESTS_PATH/99-netbox/values.yaml \
 		--timeout=600s
+}
+
+function install_idp_api_gateway() {
+	# First let's create the service without certificate to get the tailnet IP address
+	jinja2 --strict \
+		-D ip_address= -D ts_suffix=$TS_SUFFIX -D pki_org="$PKI_ORG" \
+		$MANIFESTS_PATH/03-idp/api-gateway.yaml.j2 \
+		-o $RING0_ROOT/dist/idp-api-gateway.yaml
+	kubectl apply --wait -f $RING0_ROOT/dist/idp-api-gateway.yaml
+
+	kubectl annotate -n platform-management svc/cilium-gateway-idp tailscale.com/hostname=idp
+	kubectl annotate -n platform-management svc/cilium-gateway-idp tailscale.com/expose=true
+
+	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
+	local svc_ip_addr=$(tailscale status | grep -w idp | awk '{print $1}')
+	jinja2 --strict \
+		-D ip_address=$svc_ip_addr -D ts_suffix=$TS_SUFFIX -D pki_org="$PKI_ORG" \
+		$MANIFESTS_PATH/03-idp/api-gateway.yaml.j2 \
+		-o $RING0_ROOT/dist/idp-api-gateway.yaml
+	kubectl apply --wait -f $RING0_ROOT/dist/idp-api-gateway.yaml
+}
+
+function install_authentik() {
+	print_milestone "Installing authentik"
+
+	if [[ ! -f $RING0_ROOT/dist/authentik-values.yaml ]]; then
+		jinja2 --strict \
+			-D secret_key=$(openssl rand -base64 50 | tr -d '\n') -D ts_suffix=$TS_SUFFIX \
+			$MANIFESTS_PATH/03-idp/authentik-values.yaml.j2 \
+			-o $RING0_ROOT/dist/authentik-values.yaml
+	fi
+
+	helm upgrade \
+		--namespace platform-management \
+		--install idp authentik/authentik \
+		--values $RING0_ROOT/dist/authentik-values.yaml
 }
 
 main "$@"
