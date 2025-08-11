@@ -15,4 +15,3 @@ externalDatabase:
 
 valkey:
   architecture: standalone
-

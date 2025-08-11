@@ -96,6 +96,7 @@ function main() {
 	fi
 
 	if ! helm list -n platform-management | grep -q netbox; then
+		install_cmdb_api_gateway
 		install_netbox
 	fi
 
@@ -198,7 +199,7 @@ function create_patch() {
 	cat <<EOF >$RING0_ROOT/dist/patch.yaml
 apiVersion: v1alpha1
 kind: TrustedRootsConfig
-name: homelab-ca
+name: microdc-ca
 certificates: |-
 EOF
 	awk '{print "    "$0}' "$CA" >>dist/patch.yaml
@@ -409,13 +410,13 @@ function install_database() {
 	kubectl wait --for=condition=Ready cluster/tooling -n platform-management --timeout=600s
 }
 
-function install_netbox() {
-	print_milestone "Installing netbox"
+function install_cmdb_api_gateway() {
+	print_milestone "Installing the api gateway used by the cmdb"
 
 	# First let's create the service without certificate to get the tailnet IP address
 	jinja2 --strict \
-		-D ip_address= -D ts_suffix=$TS_SUFFIX -D pki_org=$PKI_ORG \
-		$MANIFESTS_PATH/99-netbox/api-gateway.yaml.j2 \
+		-D ip_address= -D ts_suffix=$TS_SUFFIX -D pki_org="$PKI_ORG" \
+		$MANIFESTS_PATH/04-cmdb/api-gateway.yaml.j2 \
 		-o $RING0_ROOT/dist/cmdb-api-gateway.yaml
 	kubectl apply --wait -f $RING0_ROOT/dist/cmdb-api-gateway.yaml
 	kubectl annotate -n platform-management svc/cilium-gateway-cmdb tailscale.com/hostname=cmdb
@@ -424,18 +425,24 @@ function install_netbox() {
 	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
 	local svc_ip_addr=$(tailscale status | grep -w cmdb | awk '{print $1}')
 	jinja2 --strict \
-		-D ip_address=$svc_ip_addr -D ts_suffix=$TS_SUFFIX -D pki_org=$PKI_ORG \
-		$MANIFESTS_PATH/99-netbox/api-gateway.yaml.j2 \
+		-D ip_address=$svc_ip_addr -D ts_suffix=$TS_SUFFIX -D pki_org="$PKI_ORG" \
+		$MANIFESTS_PATH/04-cmdb/api-gateway.yaml.j2 \
 		-o $RING0_ROOT/dist/cmdb-api-gateway.yaml
 	kubectl apply --wait -f $RING0_ROOT/dist/cmdb-api-gateway.yaml
+}
+
+function install_netbox() {
+	print_milestone "Installing netbox"
 
 	helm install cmdb oci://ghcr.io/netbox-community/netbox-chart/netbox --wait \
 		--namespace platform-management \
-		--values $MANIFESTS_PATH/99-netbox/values.yaml \
+		--values $MANIFESTS_PATH/04-cmdb/netbox-values.yaml \
 		--timeout=600s
 }
 
 function install_idp_api_gateway() {
+	print_milestone "Installing the api gateway used by the idp"
+
 	# First let's create the service without certificate to get the tailnet IP address
 	jinja2 --strict \
 		-D ip_address= -D ts_suffix=$TS_SUFFIX -D pki_org="$PKI_ORG" \

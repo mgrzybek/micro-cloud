@@ -42,7 +42,7 @@ spec:
   listeners:
 {% if ip_address | length > 0 %}
   - protocol: HTTPS
-    port: 9443
+    port: 443
     name: cmdb-https
     allowedRoutes:
       namespaces:
@@ -54,7 +54,7 @@ spec:
         name: cmdb-endpoint
 {% else %}
   - protocol: HTTP
-    port: 9080
+    port: 80
     name: cmdb-http
     allowedRoutes:
       namespaces:
@@ -77,7 +77,7 @@ spec:
   - backendRefs:
     - group: ""
       kind: Service
-      name: netbox
+      name: cmdb-netbox
       port: 80
       weight: 1
     matches:
