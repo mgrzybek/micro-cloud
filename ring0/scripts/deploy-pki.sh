@@ -114,7 +114,7 @@ EOF
 function create_ca() {
 	print_milestone "Configuring the PKI"
 
-	result=$(incus exec pki -- find $PKI_ROOT/files/intermediate/intermediate-fullchain.pem)
+	result=$(incus exec pki -- find $PKI_ROOT/files/intermediate/bundle.crt)
 
 	if [[ -z "$result" ]]; then
 		print_milestone "Sending files to the PKI instance"
@@ -142,7 +142,7 @@ function create_ca() {
 
 		print_milestone "CA fullchain"
 
-		echo "make -C $PKI_ROOT files/intermediate/intermediate-fullchain.pem" | incus exec pki -- bash
+		echo "make -C $PKI_ROOT files/intermediate/bundle.crt" | incus exec pki -- bash
 	else
 		print_check "$result already exist"
 		print_check "The PKI has already been bootstrapped"
@@ -151,8 +151,8 @@ function create_ca() {
 	print_milestone "Getting the intermediate CA"
 
 	mkdir -p dist
-	echo "cat $PKI_ROOT/files/intermediate/intermediate-fullchain.pem" | incus exec pki -- bash >$RING0_ROOT/dist/intermediate-fullchain.pem
-	find $RING0_ROOT/dist/intermediate-fullchain.pem
+	echo "cat $PKI_ROOT/files/intermediate/bundle.crt" | incus exec pki -- bash >$RING0_ROOT/dist/bundle.crt
+	find $RING0_ROOT/dist/bundle.crt
 }
 
 function start_multirootca() {

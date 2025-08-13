@@ -25,6 +25,9 @@ files/intermediate/intermediate-ca-key.pem: files/root/root-ca.pem files/root/ro
 files/intermediate/intermediate-fullchain.pem: files/intermediate/intermediate-ca-key.pem
 	cat files/root/root-ca.pem files/intermediate/intermediate-ca.pem | tee files/intermediate/intermediate-fullchain.pem
 
+files/intermediate/bundle.crt: files/intermediate/intermediate-fullchain.pem
+	mkbundle -f files/intermediate/bundle.crt files/intermediate/intermediate-fullchain.pem
+
 #####################################
 # Tooling
 .PHONY: destroy-pki
