@@ -174,8 +174,8 @@ export PKI_STATE="IDF"
 cd ./ring0
 make dist/intermediate-fullchain.pem
 
-# Both the intermediate CA and the secret auth key for multirootca should be present.
-cat dist/intermediate-fullchain.pem
+# Both the intermediate CA bundle and the secret auth key for multirootca should be present.
+cat dist/bundle.crt
 cat dist/auth.key
 ```
 
