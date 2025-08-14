@@ -10,6 +10,7 @@ source $RING0_ROOT/scripts/common.sh
 # External libraries
 source $RING0_ROOT/scripts/common.sh
 source $RING0_ROOT/scripts/management/bootstrap-instance.sh
+source $RING0_ROOT/scripts/management/install-platform-management.sh
 
 ################################################################################
 # Local constants
