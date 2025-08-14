@@ -63,7 +63,7 @@ Enterprise_Boundary(ring0, "Ring 0") {
         Container_Boundary(management, "Management instance") {
             Component(tailscale, "Tailscale operator", "helm, tailscale-operator")
             Component(issuer, "Provides certificates", "helm, cert-manager, cfssl-issuer")
-            Component(id, "ID Provider", "helm, zitadel")
+            Component(id, "ID Provider", "helm, authentik")
             Component(dcim, "CMDB", "helm, netbox")
             Component(deployment, "Platform deployer", "helm, kamaji, ironic")
         }
@@ -125,7 +125,7 @@ graph
     end
 
     subgraph middlewares["Management middlewares"]
-        zitadel["Identity Provider"] -- A users' database is ready to be used     --> netbox["CMDB + DCIM + IPAM"]
+        authentik["Identity Provider"] -- A users' database is ready to be used     --> netbox["CMDB + DCIM + IPAM"]
         kamaji["Kubernetes Controlplane as a Service"]
         ironic["Baremetal manager"] -- Ironic has been installed using the operator --> metal3["Kubernetes nodes manager"]
     end
@@ -210,6 +210,31 @@ export TS_AUTHKEY=xxxxxx
 make management
 ```
 
+## Installing the middlewares
+
+### Installing the IDP service
+
+```shell
+make idp
+```
+
+Now you are ready to populate your directory as needed. Please note that Netbox uses two groups by default: `staff` and `superusers`. You have to add some users to these groups to be able to manage Netbox.
+
+### Configuring the Netbox provider
+
+The official documentation on how to integrate the SSO mechanism between Authentik and Netbox is [described here](https://integrations.goauthentik.io/documentation/netbox/).
+
+However, some care must be provided concerning the OAuth2/OpenID Provider section. The signing key should be set to the default one but the encryption key must be unselected. The Python module used by Netbox returns errors when trying to decrypt JWT tokens.
+
+```shell
+export APPLICATION_SLUG=netbox-cmdb
+export CLIENT_ID=xxxxx
+export CLIENT_SECRET=xxxxx
+
+create_remote_auth_configmap
+install_netbox
+```
+
 ## Troubleshooting
 
 Here are some common issues and tips:
@@ -224,7 +249,10 @@ Here are some common issues and tips:
   Confirm that `make dist/intermediate-fullchain.pem` runs without error. Verify the presence of the root CA and intermediate CA CSR files in the `pets/ring0/core-services/pki/files` directory.
 
 - **Management services fail to deploy:**  
-  Ensure that the bootstrap instance is fully operational and accessible. Check that the management instance joins the tailnet using `tailscale ping management`. Check Kubernetes cluster status and the logs of Helm deployments (cert-manager, zitadel, netbox, etc.).
+  Ensure that the bootstrap instance is fully operational and accessible. Check that the management instance joins the tailnet using `tailscale ping management`. Check Kubernetes cluster status and the logs of Helm deployments (cert-manager, authentik, netbox, etc.).
+
+- **SSO login fails using Netbox:**
+  Check the signing and encryption keys used in the provider section in Authentik.
 
 - **General logs and debugging:**  
   Use `journalctl` on the bootstrap and pki instances to inspect system services. Use `incus` commands with verbose flags (`-v`) for detailed output. Use `incus console management` to see the console output of the management instance, especially during the boot process.
@@ -237,5 +265,5 @@ For more detailed help, visit the documentation and communities of the respectiv
 - [Kamaji](https://kamaji.io/)  
 - [Ironic Baremetal](https://book.metal3.io/irso/install-basics)
 - [Cert-manager](https://cert-manager.io/docs/)  
-- [Zitadel](https://zitadel.com/docs)  
+- [Authentik](https://docs.goauthentik.io/docs/install-config/)
 - [Netbox](https://netbox.readthedocs.io/en/stable/)  

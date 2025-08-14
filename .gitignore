@@ -2,5 +2,6 @@
 dist/
 
 # PKI
+ring0/core-services/pki/files
 *.pem
 *.csr

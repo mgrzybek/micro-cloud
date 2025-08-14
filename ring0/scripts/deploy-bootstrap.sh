@@ -2,12 +2,17 @@
 
 set -e
 
-source common.sh
-
 BUFFER=$(mktemp -d)
 INSTANCE=bootstrap
+RING0_ROOT="$(find $PWD -type d -name ring0)"
 PKI_ROOT=/var/lib/pki/files
 
+################################################################################
+# External libraries
+source $RING0_ROOT/scripts/common.sh
+
+################################################################################
+# Testing variables
 print_check "Checking variables"
 
 if [[ -z "$BRIDGE_NAME" ]]; then
@@ -82,6 +87,8 @@ if [[ -z "$PKI_STATE" ]]; then
 	exit 1
 fi
 
+################################################################################
+# Functions
 function main() {
 	prepare
 	push_csr

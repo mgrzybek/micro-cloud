@@ -21,6 +21,14 @@ bootstrap: dist/intermediate-fullchain.pem ## Deploy the bootstrap instance
 management: dist/intermediate-fullchain.pem ## Deploy the management instance
 	bash ./scripts/deploy-management.sh
 
+.PHONY: idp
+idp:  ## Deploy the IDP using Helm
+	bash ./scripts/deploy-idp.sh
+
+.PHONY: cmdb
+cmdb: ## Deploy the CMDB using Helm
+	bash ./scripts/deploy-cmdb.sh
+
 .PHONY: destroy-management
 destroy-management: ## Destroy the management instance
 	if incus list | grep -q management ; then incus delete -f management ; fi

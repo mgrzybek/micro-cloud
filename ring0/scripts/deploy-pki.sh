@@ -1,14 +1,18 @@
 #! /usr/bin/env bash
 
-set -e
+set -ex
 
 INSTANCE=pki
 PKI_ROOT=/var/lib/pki
 
-RING0_ROOT="$(dirname $0)/.."
+RING0_ROOT="$(find $PWD -type d -name ring0)"
 
-source common.sh
+################################################################################
+# External libraries
+source $RING0_ROOT/scripts/common.sh
 
+################################################################################
+# Testing variables
 if [[ -z "$PKI_COUNTRY" ]]; then
 	echo "PKI_COUNTRY must be defined"
 	exit 1
@@ -34,6 +38,8 @@ if [[ -z "$PKI_STATE" ]]; then
 	exit 1
 fi
 
+################################################################################
+# Functions
 function main() {
 	prepare
 
@@ -69,6 +75,9 @@ function create_instance() {
 }
 
 function create_ca_csr() {
+	mkdir -p "$RING0_ROOT/core-services/pki/files/intermediate"
+	mkdir -p "$RING0_ROOT/core-services/pki/files/root"
+
 	cat <<EOF >"$RING0_ROOT/core-services/pki/files/root/root-csr.json"
 {
   "CN": "Root Certificate Authority",
@@ -158,8 +167,12 @@ function create_ca() {
 function start_multirootca() {
 	print_milestone "Create the auth key for the webservice"
 
-	auth_key=$(openssl rand -hex 16)
-	echo $auth_key >$RING0_ROOT/dist/auth.key
+	if [[ ! -f "$RING0_ROOT/dist/auth.key" ]]; then
+		auth_key=$(openssl rand -hex 16)
+		echo -n $auth_key >"$RING0_ROOT/dist/auth.key"
+	else
+		auth_key=$(cat "$RING0_ROOT/dist/auth.key")
+	fi
 
 	print_milestone "Configuring multirootca"
 

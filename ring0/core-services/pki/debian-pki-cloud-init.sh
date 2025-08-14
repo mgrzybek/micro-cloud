@@ -2,8 +2,8 @@
 
 source /etc/cloud.sh
 
-if [[ -z "$TLD" ]]; then
-	echo "TLD must be given as argument"
+if [[ -z "$SUFFIX" ]]; then
+	echo "SUFFIX must be present in /etc/cloud.sh"
 	exit 1
 fi
 
@@ -98,7 +98,7 @@ Description=CFSSL PKI Certificate Authority
 After=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/multirootca -a 0.0.0.0:8000 -l microcloud -roots $pki/config/multiroot-profile.ini -tls-cert $pki/certificates/pki.$TLD.pem -tls-key $pki/certificates/pki.$TLD-key.pem -loglevel 0
+ExecStart=/usr/local/bin/multirootca -a 0.0.0.0:8000 -l microcloud -roots $pki/config/multiroot-profile.ini -tls-cert $pki/certificates/pki.$SUFFIX.pem -tls-key $pki/certificates/pki.$SUFFIX-key.pem -loglevel 0
 Restart=on-failure
 Type=simple
 

@@ -18,7 +18,9 @@ function print_check() {
 	echo "✔ $1"
 }
 
-export RING0_ROOT="$(dirname $0)/.."
+if [[ -z "$RING0_ROOT" ]]; then
+	export RING0_ROOT=$(find $PWD -type d -name ring0)
+fi
 export MANIFESTS_PATH=$RING0_ROOT/core-services/management/manifests
 
 export TS_SUFFIX=$(tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}')

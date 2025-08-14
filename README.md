@@ -66,7 +66,7 @@ The project relies on a home server rack composed of:
 - **PKI:** cfssl, cert-manager, multirootca
 - **Bootstrapping:** kea, matchbox, Talos
 - **Orchestration:** Kubernetes, Kamaji, Metal3, Ironic
-- **Middleware:** Netbox, Zitadel
+- **Middleware:** Netbox, Authentik
 
 ## Getting Started
 
