@@ -1,0 +1,116 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: platform-management/kamaji-serving-cert
+  name: kamaji-mutating-webhook-configuration
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: kamaji-webhook-service
+        namespace: platform-management
+        path: /mutate-kamaji-clastix-io-v1alpha1-tenantcontrolplane
+    failurePolicy: Fail
+    name: mtenantcontrolplane.kb.io
+    rules:
+      - apiGroups:
+          - kamaji.clastix.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - tenantcontrolplanes
+    sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: platform-management/kamaji-serving-cert
+  name: kamaji-validating-webhook-configuration
+webhooks:
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: kamaji-webhook-service
+        namespace: platform-management
+        path: /telemetry
+    failurePolicy: Ignore
+    name: telemetry.kamaji.clastix.io
+    rules:
+      - apiGroups:
+          - kamaji.clastix.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - tenantcontrolplanes
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: kamaji-webhook-service
+        namespace: platform-management
+        path: /validate--v1-secret
+    failurePolicy: Ignore
+    name: vdatastoresecrets.kb.io
+    rules:
+      - apiGroups:
+          - ""
+        apiVersions:
+          - v1
+        operations:
+          - DELETE
+        resources:
+          - secrets
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: kamaji-webhook-service
+        namespace: platform-management
+        path: /validate-kamaji-clastix-io-v1alpha1-datastore
+    failurePolicy: Fail
+    name: vdatastore.kb.io
+    rules:
+      - apiGroups:
+          - kamaji.clastix.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+          - DELETE
+        resources:
+          - datastores
+    sideEffects: None
+  - admissionReviewVersions:
+      - v1
+    clientConfig:
+      service:
+        name: kamaji-webhook-service
+        namespace: platform-management
+        path: /validate-kamaji-clastix-io-v1alpha1-tenantcontrolplane
+    failurePolicy: Fail
+    name: vtenantcontrolplane.kb.io
+    rules:
+      - apiGroups:
+          - kamaji.clastix.io
+        apiVersions:
+          - v1alpha1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - tenantcontrolplanes
+    sideEffects: None

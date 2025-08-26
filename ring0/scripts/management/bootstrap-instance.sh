@@ -51,6 +51,7 @@ function prepare() {
 	helm repo add jetstack https://charts.jetstack.io
 	helm repo add cnpg https://cloudnative-pg.github.io/charts
 	helm repo add authentik https://charts.goauthentik.io
+	helm repo add clastix https://clastix.github.io/charts
 	helm repo update
 }
 

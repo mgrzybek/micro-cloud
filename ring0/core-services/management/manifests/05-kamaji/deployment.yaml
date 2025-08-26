@@ -1,0 +1,92 @@
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: kamaji
+    labels:
+      app.kubernetes.io/name: kamaji
+      app.kubernetes.io/instance: kamaji
+      app.kubernetes.io/component: controller-manager
+    namespace: platform-management
+  spec:
+    replicas: 1
+    selector:
+      matchLabels:
+        app.kubernetes.io/name: kamaji
+        app.kubernetes.io/instance: kamaji
+        app.kubernetes.io/component: controller-manager
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/name: kamaji
+          app.kubernetes.io/instance: kamaji
+          app.kubernetes.io/component: controller-manager
+      spec:
+        securityContext:
+          runAsNonRoot: true
+        serviceAccountName: kamaji-controller-manager
+        containers:
+        - args:
+          - manager
+          - --health-probe-bind-address=:8081
+          - --leader-elect
+          - --metrics-bind-address=:8080
+          - --tmp-directory=/tmp/kamaji
+          - --datastore=postgres-cnpg
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: SERVICE_ACCOUNT
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.serviceAccountName
+          image: "clastix/kamaji:edge-25.8.4"
+          imagePullPolicy: Always
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: healthcheck
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          name: manager
+          ports:
+          - containerPort: 9443
+            name: webhook-server
+            protocol: TCP
+          - containerPort: 8080
+            name: metrics
+            protocol: TCP
+          - containerPort: 8081
+            name: healthcheck
+            protocol: TCP
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: healthcheck
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+              limits:
+                cpu: 200m
+                memory: 100Mi
+              requests:
+                cpu: 100m
+                memory: 20Mi
+          securityContext:
+              allowPrivilegeEscalation: false
+          volumeMounts:
+            - mountPath: /tmp
+              name: tmp
+            - mountPath: /tmp/k8s-webhook-server/serving-certs
+              name: cert
+              readOnly: true
+        terminationGracePeriodSeconds: 10
+        volumes:
+          - name: tmp
+            emptyDir:
+              medium: Memory
+          - name: cert
+            secret:
+              defaultMode: 420
+              secretName: kamaji-webhook-server-cert

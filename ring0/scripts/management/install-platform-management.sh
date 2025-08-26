@@ -223,3 +223,11 @@ function install_netbox() {
 	kubectl wait -n platform-management --for=condition=Available deployment/cmdb-netbox-worker
 	print_check "Netbox is ready"
 }
+
+function install_kamaji() {
+	print_milestone "Installing kamaji"
+
+	helm upgrade --install --namespace platform-management kamaji-crds clastix/kamaji-crds
+	kubectl apply -f $MANIFESTS_PATH/05-kamaji/
+	kubectl wait -n platform-management --for=condition=Available deployment/kamaji --timeout=600s
+}
