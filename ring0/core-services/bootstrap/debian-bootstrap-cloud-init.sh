@@ -13,6 +13,7 @@ function main() {
 	prepare_matchbox_ipxe
 	prepare_matchbox_flatcar
 	prepare_matchbox_talos
+	prepare_matchbox_ironic
 
 	install_machinecfg
 	install_butane
@@ -438,6 +439,22 @@ function prepare_matchbox_flatcar() {
 	download_if_needed "$base_url" "flatcar_production_image.bin.bz2.sig"
 
 	echo "✔ Checking binaries"
+	find $assets
+	echo
+}
+
+function prepare_matchbox_ironic() {
+	echo "#####################"
+	echo "👷 Installing assets for Ironic"
+
+	assets=/var/lib/matchbox/assets/ironic
+
+	mkdir -p "$assets"
+	cd "$assets"
+	download_if_needed https://tarballs.opendev.org/openstack/ironic-python-agent/dib ipa-centos9-master.tar.gz
+	echo "ETag: $(stat --printf=%Z ipa-centos9-master.tar.gz)" >ipa-centos9-master.tar.gz.headers
+
+	echo "✔ Checking assets"
 	find $assets
 	echo
 }
