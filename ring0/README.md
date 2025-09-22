@@ -172,7 +172,7 @@ export PKI_ORG_UNIT="CA Services"
 export PKI_STATE="IDF"
 
 cd ./ring0
-make dist/intermediate-fullchain.pem
+task intermediate-fullchain.pem
 
 # Both the intermediate CA bundle and the secret auth key for multirootca should be present.
 cat dist/bundle.crt
@@ -182,7 +182,7 @@ cat dist/auth.key
 ## Bootstrapping the netboot services
 
 First, we need to create the bootstrap instance and to configure it.  
-The `make bootstrap` command will set up the bootstrap instance with the network bridge, VLAN, and physical interface specified, and prepare the Talos artifacts required for deployment. Talos is a Kubernetes-native, minimal OS for managing bare metal clusters (https://talos.dev).
+The `task bootstrap` command will set up the bootstrap instance with the network bridge, VLAN, and physical interface specified, and prepare the Talos artifacts required for deployment. Talos is a Kubernetes-native, minimal OS for managing bare metal clusters (https://talos.dev).
 
 ```bash
 export BRIDGE_NAME=bootstrapbr0         # Depending on your incus configuration
@@ -195,7 +195,7 @@ export TALOS_FACTORY_URL=factory.talos.dev/metal-installer
 export TALOS_FACTORY_UUID=a78ca499dd99112bd2c2730b1b8a50375d8fa3af36f1a10b30a2fa83cc8c0d35
 export TALOS_VERSION=v1.10.4
 
-make bootstrap
+task bootstrap
 ```
 
 ## Bootstrapping the management node
@@ -207,7 +207,7 @@ Let's deploy the management instance. Some variables can be changed if required.
 export KUBEAPI_IPADDR=192.168.2.3
 export TS_AUTHKEY=xxxxxx
 
-make management
+task management
 ```
 
 ## Installing the middlewares
@@ -215,7 +215,7 @@ make management
 ### Installing the IDP service
 
 ```shell
-make idp
+task idp
 ```
 
 Now you are ready to populate your directory as needed. Please note that Netbox uses two groups by default: `staff` and `superusers`. You have to add some users to these groups to be able to manage Netbox.
@@ -231,7 +231,7 @@ export APPLICATION_SLUG=netbox-cmdb
 export CLIENT_ID=xxxxx
 export CLIENT_SECRET=xxxxx
 
-make cmdb
+task cmdb
 ```
 
 ## Troubleshooting

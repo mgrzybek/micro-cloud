@@ -1,0 +1,42 @@
+---
+version: 3
+
+tasks:
+  dist-clean:
+    desc: Removes the distribution artifacts
+    prompt:
+      - This is a dangerous command... Do you want to continue?
+      - Are you sure?
+    dir: '{{.USER_WORKING_DIR}}/dist'
+    cmd: rm -rf *
+
+  intermediate-fullchain:
+    desc: Deploy the PKI and creates the root CA
+    cmd: bash ./scripts/deploy-pki.sh
+    generates: [ dist/intermediate-fullchain.pem ]
+  
+  bootstrap:
+    desc: Deploy the bootstrap instance
+    deps: [ intermediate-fullchain ]
+    cmd: bash ./scripts/deploy-bootstrap.sh
+
+  management:
+    desc: Deploy the management instance
+    cmd: bash ./scripts/deploy-management.sh
+
+  idp:
+    desc: Deploy the IDP using Helm
+    cmd: bash ./scripts/deploy-idp.sh
+
+  cmdb:
+    desc: Deploy the CMDB using Helm
+    cmd: bash ./scripts/deploy-cmdb.sh
+
+  destroy-management:
+    desc: Destroy the management instance
+    prompt:
+      - This is a dangerous command... Do you want to continue?
+      - Are you sure?
+    cmds:
+    - if incus list | grep -q management ; then incus delete -f management ; fi
+    - kubectl config delete-context admin@management
