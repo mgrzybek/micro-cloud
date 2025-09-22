@@ -1,13 +1,10 @@
----
 variant: flatcar
 version: 1.1.0
-
 passwd:
   users:
     - name: core
       ssh_authorized_keys:
         - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEq4VK7r+mAqDeMyv76WkEeSa2dJ5W3e8k4PL1MODnbG mathieu@Mac-mini.lan"
-
 storage:
   files:
     # Groups
@@ -17,7 +14,6 @@ storage:
     - path: /etc/userdb/core:incus-admin.membership
       contents:
         inline: " "
-
     # Networking
     ## VLAN 3
     - path: /etc/systemd/network/00-vlan3.netdev
@@ -29,7 +25,6 @@ storage:
 
           [VLAN]
           Id=3
-
     - path: /etc/systemd/network/20-vlan3.network
       contents:
         inline: |
@@ -44,7 +39,6 @@ storage:
           # Well, an IPv6-link-local address as well, by default.
           [Address]
           Address=10.1.3.3/24
-
     ## VLAN 4
     - path: /etc/systemd/network/00-vlan4.netdev
       contents:
@@ -55,7 +49,6 @@ storage:
 
           [VLAN]
           Id=4
-
     - path: /etc/systemd/network/20-vlan4.network
       contents:
         inline: |
@@ -70,7 +63,6 @@ storage:
           # Well, an IPv6-link-local address as well, by default.
           [Address]
           Address=10.1.4.3/24
-
     ## Physical interface
     - path: /etc/systemd/network/00-eth0.network
       contents:
@@ -96,7 +88,6 @@ storage:
           EmitLLDP=no
           IPv6AcceptRA=no
           IPv6SendRA=no
-
     # Incus + ZFS
     - path: /etc/flatcar/enabled-sysext.conf
       contents:
@@ -136,7 +127,6 @@ storage:
             name: default
           projects: []
           cluster: null
-
     # Storage init
     - path: /usr/local/sbin/data-zpool-init.sh
       mode: 0755
@@ -179,7 +169,6 @@ storage:
           create_dataset srv /srv
 
           create_dataset tmp /var/tmp
-
   links:
     # Remove docker
     - path: /etc/extensions/docker-flatcar.raw
@@ -189,7 +178,6 @@ storage:
     - path: /etc/extensions/containerd-flatcar.raw
       target: /dev/null
       overwrite: true
-
 systemd:
   units:
     # Incus
@@ -207,10 +195,9 @@ systemd:
         ExecStart=/usr/bin/incus admin init --preseed
         [Install]
         WantedBy=multi-user.target
-
     # Storage init
     - name: create-data-zpool.service
-      enabled: true 
+      enabled: true
       contents: |
         [Unit]
         After=zfs.target

@@ -1,17 +1,15 @@
 cluster:
   allowSchedulingOnControlPlanes: true
-
   apiServer:
     admissionControl:
-    - name: PodSecurity
-      configuration:
-        apiVersion: pod-security.admission.config.k8s.io/v1beta1
-        kind: PodSecurityConfiguration
-        exemptions:
-          namespaces:
-          - local-path-storage
-          - tailscale
-
+      - name: PodSecurity
+        configuration:
+          apiVersion: pod-security.admission.config.k8s.io/v1beta1
+          kind: PodSecurityConfiguration
+          exemptions:
+            namespaces:
+              - local-path-storage
+              - tailscale
   discovery:
     enabled: false
   network:
@@ -19,34 +17,32 @@ cluster:
       name: none
   proxy:
     disabled: true
-
 machine:
   time:
     disabled: false
     servers:
-    - 192.168.0.1
-    - ntp0.ovh.net 
-    - time.cloudflare.com
-    - time.google.com
+      - 192.168.0.1
+      - ntp0.ovh.net
+      - time.cloudflare.com
+      - time.google.com
     bootTimeout: 2m0s
   network:
     hostname: management # Used to statically set the hostname for the machine.
     interfaces:
-    - interface: enp6s0
-      # Assigns static IP addresses to the interface.
-      addresses:
-      - {{bootstrap_cidr}}
-    - interface: enp7s0
-      # Assigns static IP addresses to the interface.
-      addresses:
-      - {{services_cidr}}
-
+      - interface: enp6s0
+        # Assigns static IP addresses to the interface.
+        addresses:
+          - {? {bootstrap_cidr: ''} : ''}
+      - interface: enp7s0
+        # Assigns static IP addresses to the interface.
+        addresses:
+          - {? {services_cidr: ''} : ''}
   kubelet:
     extraMounts:
-    - destination: /var/local
-      type: bind
-      source: /var/local
-      options:
-      - bind
-      - rshared
-      - rw
+      - destination: /var/local
+        type: bind
+        source: /var/local
+        options:
+          - bind
+          - rshared
+          - rw

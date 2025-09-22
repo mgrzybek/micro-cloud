@@ -1,10 +1,6 @@
----
-
 defaultLanguage: fr-fr
-
 postgresql:
   enabled: false
-
 externalDatabase:
   existingSecretName: tooling-app
   existingSecretKey: password
@@ -12,112 +8,45 @@ externalDatabase:
   port: 5432
   username: app
   database: netbox
-
 valkey:
   architecture: standalone
-
 #
 # OIDC
 #
 extraConfig:
-- secret:
-  secretName: idp-netbox-remote-auth
-  items:
-  - netbox-remote-auth.py
-  optional: false
-
+  - secret:
+    secretName: idp-netbox-remote-auth
+    items:
+      - netbox-remote-auth.py
+    optional: false
 extraDeploy:
-  - |
-    apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: cmdb-netbox-sso-pipeline-roles
-      namespace: platform-management
-    data:
-      sso_pipeline_roles.py: |
-        # direct import from https://integrations.goauthentik.io/documentation/netbox/#groups
-        # from django.contrib.auth.models import Group # For Netbox < 4.0.0
-        from netbox.authentication import Group # For Netbox >= 4.0.0
-        
-        class AuthFailed(Exception):
-            pass
-        
-        def add_groups(response, user, backend, *args, **kwargs):
-            try:
-                groups = response['groups']
-            except KeyError:
-                pass
-        
-            # Add all groups from oAuth token
-            for group in groups:
-                group, created = Group.objects.get_or_create(name=group)
-                user.groups.add(group) # For Netbox >= 4.0.0
-        
-        def remove_groups(response, user, backend, *args, **kwargs):
-            try:
-                groups = response['groups']
-            except KeyError:
-                # Remove all groups if no groups in oAuth token
-                user.groups.clear()
-                pass
-        
-            # Get all groups of user
-            user_groups = [item.name for item in user.groups.all()]
-            # Get groups of user which are not part of oAuth token
-            delete_groups = list(set(user_groups) - set(groups))
-        
-            # Delete non oAuth token groups
-            for delete_group in delete_groups:
-                group = Group.objects.get(name=delete_group)
-                # group.user_set.remove(user) # For Netbox < 4.0.0
-                user.groups.remove(group) # For Netbox >= 4.0.0
-        
-        
-        def set_roles(response, user, backend, *args, **kwargs):
-            # Remove Roles temporary
-            user.is_superuser = False
-            user.is_staff = False
-            try:
-                groups = response['groups']
-            except KeyError:
-                # When no groups are set
-                # save the user without Roles
-                user.save()
-                pass
-        
-            # Set roles is role (superuser or staff) is in groups
-            user.is_superuser = True if 'superusers' in groups else False
-            user.is_staff = True if 'staff' in groups else False
-            user.save()
-
+  - "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cmdb-netbox-sso-pipeline-roles\n  namespace: platform-management\ndata:\n  sso_pipeline_roles.py: |\n    # direct import from https://integrations.goauthentik.io/documentation/netbox/#groups\n    # from django.contrib.auth.models import Group # For Netbox < 4.0.0\n    from netbox.authentication import Group # For Netbox >= 4.0.0\n    \n    class AuthFailed(Exception):\n        pass\n    \n    def add_groups(response, user, backend, *args, **kwargs):\n        try:\n            groups = response['groups']\n        except KeyError:\n            pass\n    \n        # Add all groups from oAuth token\n        for group in groups:\n            group, created = Group.objects.get_or_create(name=group)\n            user.groups.add(group) # For Netbox >= 4.0.0\n    \n    def remove_groups(response, user, backend, *args, **kwargs):\n        try:\n            groups = response['groups']\n        except KeyError:\n            # Remove all groups if no groups in oAuth token\n            user.groups.clear()\n            pass\n    \n        # Get all groups of user\n        user_groups = [item.name for item in user.groups.all()]\n        # Get groups of user which are not part of oAuth token\n        delete_groups = list(set(user_groups) - set(groups))\n    \n        # Delete non oAuth token groups\n        for delete_group in delete_groups:\n            group = Group.objects.get(name=delete_group)\n            # group.user_set.remove(user) # For Netbox < 4.0.0\n            user.groups.remove(group) # For Netbox >= 4.0.0\n    \n    \n    def set_roles(response, user, backend, *args, **kwargs):\n        # Remove Roles temporary\n        user.is_superuser = False\n        user.is_staff = False\n        try:\n            groups = response['groups']\n        except KeyError:\n            # When no groups are set\n            # save the user without Roles\n            user.save()\n            pass\n    \n        # Set roles is role (superuser or staff) is in groups\n        user.is_superuser = True if 'superusers' in groups else False\n        user.is_staff = True if 'staff' in groups else False\n        user.save()\n"
 extraVolumes:
-- name: remote-auth
-  secret:
-    secretName: cmdb-netbox-remote-auth
-- name: sso-pipeline-roles
-  configMap:
-    name: cmdb-netbox-sso-pipeline-roles
-    defaultMode: 0755
-- name: internal-ca-chain
-  configMap:
-    name: internal-ca-chain
-
+  - name: remote-auth
+    secret:
+      secretName: cmdb-netbox-remote-auth
+  - name: sso-pipeline-roles
+    configMap:
+      name: cmdb-netbox-sso-pipeline-roles
+      defaultMode: 0755
+  - name: internal-ca-chain
+    configMap:
+      name: internal-ca-chain
 extraVolumeMounts:
-# Single sign-on
-- name: remote-auth
-  mountPath: /etc/netbox/config/extra.py
-  subPath: netbox-remote-auth.py
-  readOnly: true
-- name: sso-pipeline-roles
-  mountPath: /opt/netbox/netbox/netbox/custom_pipeline.py
-  subPath: sso_pipeline_roles.py
-  readOnly: true
-# Custom CA bundle
-- name: internal-ca-chain
-  mountPath: /usr/share/ca-certificates/
-  readOnly: true
-
+  # Single sign-on
+  - name: remote-auth
+    mountPath: /etc/netbox/config/extra.py
+    subPath: netbox-remote-auth.py
+    readOnly: true
+  - name: sso-pipeline-roles
+    mountPath: /opt/netbox/netbox/netbox/custom_pipeline.py
+    subPath: sso_pipeline_roles.py
+    readOnly: true
+  # Custom CA bundle
+  - name: internal-ca-chain
+    mountPath: /usr/share/ca-certificates/
+    readOnly: true
 extraEnvs:
-# Custom CA bundle
-- name: REQUESTS_CA_BUNDLE
-  value: /usr/share/ca-certificates/internal-ca.crt
+  # Custom CA bundle
+  - name: REQUESTS_CA_BUNDLE
+    value: /usr/share/ca-certificates/internal-ca.crt

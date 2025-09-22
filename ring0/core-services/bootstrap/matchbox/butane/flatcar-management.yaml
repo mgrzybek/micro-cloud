@@ -1,115 +1,87 @@
----
 variant: flatcar
 version: 1.0.0
-
 passwd:
   users:
-  - name: core
-    password_hash: ""
-    ssh_authorized_keys:
-    - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEq4VK7r+mAqDeMyv76WkEeSa2dJ5W3e8k4PL1MODnbG mathieu@Mac-mini.lan"
-
+    - name: core
+      password_hash: ""
+      ssh_authorized_keys:
+        - "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEq4VK7r+mAqDeMyv76WkEeSa2dJ5W3e8k4PL1MODnbG mathieu@Mac-mini.lan"
 systemd:
   units:
-  - name: systemd-journal-upload.service
-    enabled: true
+    - name: systemd-journal-upload.service
+      enabled: true
+    - name: k3s-install.service
+      enabled: true
+      contents: "[Unit]\nDescription=Run K3s script\nWants = network-online.target\nAfter = network.target network-online.target        \nConditionPathExists=/opt/k3s-install.sh\nConditionPathExists=!/opt/bin/k3s\n\n[Install]\nWantedBy=multi-user.target\n\n[Service]\nType=forking\nTimeoutStartSec=180\nRemainAfterExit=yes\nKillMode=process\nEnvironment=\"K3S_TOKEN=secret_edgecluster_token\"\nEnvironment=\"INSTALL_K3S_EXEC=--cluster-init\"\nExecStart=/usr/bin/sh -c \"/opt/k3s-install.sh\"\n"
+    # Storage init
+    - name: create-data-zpool.service
+      enabled: true
+      contents: |
+        [Unit]
+        After=zfs.target
 
-  - name: k3s-install.service
-    enabled: true 
-    contents: |
-      [Unit]
-      Description=Run K3s script
-      Wants = network-online.target
-      After = network.target network-online.target        
-      ConditionPathExists=/opt/k3s-install.sh
-      ConditionPathExists=!/opt/bin/k3s
+        [Install]
+        WantedBy=multi-user.target
 
-      [Install]
-      WantedBy=multi-user.target
-
-      [Service]
-      Type=forking
-      TimeoutStartSec=180
-      RemainAfterExit=yes
-      KillMode=process
-      Environment="K3S_TOKEN=secret_edgecluster_token"
-      Environment="INSTALL_K3S_EXEC=--cluster-init"
-      ExecStart=/usr/bin/sh -c "/opt/k3s-install.sh"
-
-  # Storage init
-  - name: create-data-zpool.service
-    enabled: true 
-    contents: |
-      [Unit]
-      After=zfs.target
-
-      [Install]
-      WantedBy=multi-user.target
-
-      [Service]
-      Type=oneshot
-      ExecStart=/opt/data-zpool-init.sh
-
+        [Service]
+        Type=oneshot
+        ExecStart=/opt/data-zpool-init.sh
 storage:
   files:
-  - path: /etc/hostname
-    mode: 0644
-    contents:
-      inline: management
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: management
+    - path: /opt/k3s-install.sh
+      mode: 0755
+      contents:
+        source: https://get.k3s.io
+    # ZFS
+    - path: /etc/flatcar/enabled-sysext.conf
+      contents:
+        inline: |
+          zfs
+    # Physical interface
+    - path: /etc/systemd/network/00-eth0.network
+      contents:
+        inline: |
+          [Match]
+          Name=enp6s0
+          Type=ether
 
-  - path: /opt/k3s-install.sh
-    mode: 0755
-    contents:
-      source: https://get.k3s.io
+          [Network]
+          Description=The service ethernet device
 
-  # ZFS
-  - path: /etc/flatcar/enabled-sysext.conf
-    contents:
-      inline: |
-        zfs
+          LinkLocalAddressing=no
+          LLDP=yes
+          EmitLLDP=yes
+          IPv6AcceptRA=no
+          IPv6SendRA=no
 
-  # Physical interface
-  - path: /etc/systemd/network/00-eth0.network
-    contents:
-      inline: |
-        [Match]
-        Name=enp6s0
-        Type=ether
+          [Address]
+          address:192.168.2.3/24
+    # Storage init
+    - path: /opt/data-zpool-init.sh
+      mode: 0755
+      contents:
+        inline: |
+          #! /usr/bin/env bash
+          # documentation: https://openzfs.github.io/openzfs-docs/man/master/8/zpool-create.8.html
 
-        [Network]
-        Description=The service ethernet device
+          set -e
 
-        LinkLocalAddressing=no
-        LLDP=yes
-        EmitLLDP=yes
-        IPv6AcceptRA=no
-        IPv6SendRA=no
+          export ZPOOL_NAME=data
+          export ZPOOL_DISKS="/dev/sdb"
 
-        [Address]
-        address:192.168.2.3/24
+          function detect_zpools() {
+            zpool import -a
+          }
 
-  # Storage init
-  - path: /opt/data-zpool-init.sh
-    mode: 0755
-    contents:
-      inline: |
-        #! /usr/bin/env bash
-        # documentation: https://openzfs.github.io/openzfs-docs/man/master/8/zpool-create.8.html
+          function create_zpool() {
+            if ! zpool list | grep -q $ZPOOL_NAME ; then
+              zpool create -f -m none $ZPOOL_NAME $ZPOOL_DISKS
+            fi
+          }
 
-        set -e
-
-        export ZPOOL_NAME=data
-        export ZPOOL_DISKS="/dev/sdb"
-
-        function detect_zpools() {
-          zpool import -a
-        }
-
-        function create_zpool() {
-          if ! zpool list | grep -q $ZPOOL_NAME ; then
-            zpool create -f -m none $ZPOOL_NAME $ZPOOL_DISKS
-          fi
-        }
- 
-        detect_zpools
-        create_zpool
+          detect_zpools
+          create_zpool
