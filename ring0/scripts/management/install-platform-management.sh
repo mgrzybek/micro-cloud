@@ -159,7 +159,7 @@ function install_authentik() {
 		--values $RING0_ROOT/dist/authentik-values.yaml
 }
 
-function create_remote_auth_secret() {
+function create_remote_netbox_auth_secret() {
 	print_milestone "Creating the netbox remote auth configmap"
 
 	if [[ -z "$APPLICATION_SLUG" ]]; then
@@ -195,7 +195,7 @@ function install_netbox() {
 
 	print_step "Installing the SSO credintials"
 	if ! kubectl get secrets -n platform-management | grep -q cmdb-netbox-remote-auth; then
-		echo "cmdb-netbox-remote-auth secret not found. Did you run create_remote_auth_secret before?"
+		echo "cmdb-netbox-remote-auth secret not found. Did you run create_remote_netbox_auth_secret before?"
 		return 1
 	else
 		echo "cmdb-netbox-remote-auth secret found. Nothing to do."
@@ -230,4 +230,65 @@ function install_kamaji() {
 	helm upgrade --install --namespace platform-management kamaji-crds clastix/kamaji-crds
 	kubectl apply -f $MANIFESTS_PATH/05-kamaji/
 	kubectl wait -n platform-management --for=condition=Available deployment/kamaji --timeout=600s
+}
+
+function install_metal3() {
+	export IRONIC_DATA_DIR=$RING0_ROOT/dist/ironic
+	export IRONIC_HOST_IP=$(talosctl --talosconfig=$RING0_ROOT/dist/talosconfig -n management -e management get address | awk '/enp7s0/ && ! /fe80/ {gsub("\/[0-9]+",""); print $6}')
+	DHCP_FIRST_IP="$(echo $IRONIC_HOST_IP | sed -E 's/[0-9]+$//')100"
+	DHCP_LAST_IP="$(echo $IRONIC_HOST_IP | sed -E 's/[0-9]+$//')200"
+
+	BOOTSTRAP_INTERNAL_IP=$(incus info bootstrap | grep global | head -n1 | awk '/inet:/ {gsub("\/[0-9]+","") ; print $2}')
+
+	if ! kubectl get ns | grep -q capi-system; then
+		clusterctl init --core cluster-api:v1.10.0 \
+			--bootstrap kubeadm:v1.10.0 \
+			--control-plane kubeadm:v1.10.0 -v5
+		clusterctl init --infrastructure metal3
+	fi
+
+	cd $RING0_ROOT/dist
+	if [[ ! -d baremetal-operator ]]; then
+		git clone https://github.com/metal3-io/baremetal-operator.git
+	fi
+	cd -
+
+	if ! kubectl get ns | grep -q baremetal-operator-system; then
+		kubectl create namespace baremetal-operator-system
+		kubectl annotate ns baremetal-operator-system pod-security.kubernetes.io/enforce=privileged
+	fi
+
+	mkdir -p $RING0_ROOT/dist/baremetal-operator/config/default
+	cat <<EOF >$RING0_ROOT/dist/baremetal-operator/config/default/ironic.env
+HTTP_PORT=6180
+PROVISIONING_INTERFACE=enp7s0
+USE_IRONIC_INSPECTOR=true
+DHCP_RANGE=$DHCP_FIRST_IP,$DHCP_LAST_IP
+CACHEURL=http://$BOOTSTRAP_INTERNAL_IP:8080/assets/ironic
+DEPLOY_KERNEL_URL=http://$IRONIC_HOST_IP:6180/images/ironic-python-agent.kernel
+DEPLOY_RAMDISK_URL=http://$IRONIC_HOST_IP:6180/images/ironic-python-agent.initramfs
+IRONIC_BASE_URL=http://$IRONIC_HOST_IP:6385
+IRONIC_ENDPOINT=http://$IRONIC_HOST_IP:6385/v1/
+IRONIC_KERNEL_PARAMS=console=tty0
+IRONIC_INSPECTOR_VLAN_INTERFACES=all
+IPA_BASEURI=https://tarballs.opendev.org/openstack/ironic-python-agent/dib
+IPA_BRANCH=stable-2025.1
+IPA_FLAVOR=centos9
+EOF
+
+	cp $RING0_ROOT/dist/baremetal-operator/config/default/ironic.env $RING0_ROOT/dist/baremetal-operator/ironic-deployment/default/ironic_bmo_configmap.env
+
+	cd $RING0_ROOT/dist/baremetal-operator
+	kustomize build config/default | kubectl apply -f -
+	cd -
+
+	cd $RING0_ROOT/dist/baremetal-operator/tools
+
+	if [[ "$(uname)" == "Darwin" ]]; then
+		git checkout -- deploy.sh
+		gsed -i "s/sudo//" deploy.sh
+		gsed -i "s/sed/gsed/" deploy.sh
+	fi
+	./deploy.sh -in
+	cd -
 }

@@ -231,8 +231,7 @@ export APPLICATION_SLUG=netbox-cmdb
 export CLIENT_ID=xxxxx
 export CLIENT_SECRET=xxxxx
 
-create_remote_auth_configmap
-install_netbox
+make cmdb
 ```
 
 ## Troubleshooting

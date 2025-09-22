@@ -35,7 +35,11 @@ machine:
     - interface: enp6s0
       # Assigns static IP addresses to the interface.
       addresses:
-      - 192.168.2.3/24
+      - {{bootstrap_cidr}}
+    - interface: enp7s0
+      # Assigns static IP addresses to the interface.
+      addresses:
+      - {{services_cidr}}
 
   kubelet:
     extraMounts:

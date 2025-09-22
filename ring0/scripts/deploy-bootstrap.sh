@@ -15,19 +15,19 @@ source $RING0_ROOT/scripts/common.sh
 # Testing variables
 print_check "Checking variables"
 
-if [[ -z "$BRIDGE_NAME" ]]; then
-	echo "BRIDGE_NAME must be defined".
+if [[ -z "$BRIDGE_BOOTSTRAP_NAME" ]]; then
+	echo "BRIDGE_BOOTSTRAP_NAME must be defined".
 	exit 1
 else
-	if ! incus network show $BRIDGE_NAME; then
-		echo "$BRIDGE_NAME not foun. Please choose an existing bridge."
+	if ! incus network show $BRIDGE_BOOTSTRAP_NAME; then
+		echo "$BRIDGE_BOOTSTRAP_NAME not found. Please choose an existing bridge."
 		incus network list
 		exit 1
 	fi
 fi
 
-if [[ -z "$BRIDGE_VLAN" ]]; then
-	echo "BRIDGE_VLAN must be defined".
+if [[ -z "$BRIDGE_BOOTSTRAP_VLAN" ]]; then
+	echo "BRIDGE_BOOTSTRAP_VLAN must be defined".
 	exit 1
 fi
 
@@ -35,15 +35,15 @@ if [[ -z "$PHYS_IFACE" ]]; then
 	echo "PHYS_IFACE must be defined".
 	exit 1
 else
-	if ! incus network show $BRIDGE_NAME; then
-		echo "$BRIDGE_NAME not found. Please choose an existing interface."
+	if ! incus network show $BRIDGE_BOOTSTRAP_NAME; then
+		echo "$BRIDGE_BOOTSTRAP_NAME not found. Please choose an existing interface."
 		incus network list
 		exit 1
 	fi
 fi
 
-if [[ -z "$IFACE_IPADDR_CIDR" ]]; then
-	echo "IFACE_IPADDR_CIDR must be defined"
+if [[ -z "$IFACE_BOOTSTRAP_IPADDR_CIDR" ]]; then
+	echo "IFACE_BOOTSTRAP_IPADDR_CIDR must be defined"
 	exit 1
 fi
 
@@ -108,7 +108,7 @@ function prepare() {
 
 	cat <<EOF | tee dist/$INSTANCE.sh
 SERVER_ADDR=$SERVER_ADDR
-SERVER_CIDR=$IFACE_IPADDR_CIDR
+SERVER_CIDR=$IFACE_BOOTSTRAP_IPADDR_CIDR
 NTP_ADDR=$SERVER_ADDR
 LOG_ADDR=$SERVER_ADDR
 
@@ -117,27 +117,22 @@ TALOS_VERSION=$TALOS_VERSION
 TALOS_FACTORY_URL=$TALOS_FACTORY_URL
 EOF
 
-	export SERVER_ADDR=$(echo "$IFACE_IPADDR_CIDR" | awk -F/ '{print $1}')
+	export SERVER_ADDR=$(echo "$IFACE_BOOTSTRAP_IPADDR_CIDR" | awk -F/ '{print $1}')
 }
 
 function create_instance() {
 	# documentation: https://technicallyrambling.calmatlas.com/create-vlan-aware-incus-bridge-for-dhcp-passthrough/
 	print_milestone "Creating networking"
 
-	if ! incus network list | grep -q $BRIDGE_NAME; then
-		incus network create "$BRIDGE_NAME" --type=bridge \
-			bridge.external_interfaces=$PHYS_IFACE.$BRIDGE_VLAN/$PHYS_IFACE/$BRIDGE_VLAN \
-			ipv4.address=none \
-			ipv6.address=none
-	fi
+	configure_bridge $BRIDGE_BOOTSTRAP_NAME $PHYS_IFACE $BRIDGE_BOOTSTRAP_VLAN
 
 	print_milestone "Deploying on $INSTANCE instance"
 
 	if ! incus list $NAME -f yaml | grep -q name:; then
 		incus create -v images:debian/12 "$NAME"
-		incus config device add "$INSTANCE" eth1 nic network="$BRIDGE_NAME"
+		incus config device add "$INSTANCE" eth1 nic network="$BRIDGE_BOOTSTRAP_NAME"
 		incus start "$INSTANCE"
-		incus exec $INSTANCE -- "ip addr add dev eth1 $IFACE_IPADDR_CIDR"
+		incus exec $INSTANCE -- "ip addr add dev eth1 $IFACE_BOOTSTRAP_IPADDR_CIDR"
 	fi
 }
 

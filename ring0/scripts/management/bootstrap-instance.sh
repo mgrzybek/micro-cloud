@@ -15,13 +15,28 @@ if [[ -z "$TS_OPERATOR_CLIENT_SECRET" ]]; then
 	return 1
 fi
 
-if [[ -z "$BRIDGE_NAME" ]]; then
-	echo "BRIDGE_NAME must be defined".
+if [[ -z "$BRIDGE_BOOTSTRAP_NAME" ]]; then
+	echo "BRIDGE_BOOTSTRAP_NAME must be defined".
 	exit 1
 fi
 
-if [[ -z "$KUBEAPI_IPADDR" ]]; then
-	echo "KUBEAPI_IPADDR must be given"
+if [[ -z "$BRIDGE_SERVICES_NAME" ]]; then
+	echo "BRIDGE_SERVICES_NAME must be defined".
+	exit 1
+fi
+
+if [[ -z "$PHYS_IFACE" ]]; then
+	echo "PHYS_IFACE must be given"
+	exit 1
+fi
+
+if [[ -z "$INSTANCE_BOOTSTRAP_IPADDR_CIDR" ]]; then
+	echo "INSTANCE_BOOTSTRAP_IPADDR_CIDR must be given"
+	exit 1
+fi
+
+if [[ -z "$INSTANCE_SERVICES_IPADDR_CIDR" ]]; then
+	echo "INSTANCE_SERVICES_IPADDR_CIDR must be given"
 	exit 1
 fi
 
@@ -47,6 +62,8 @@ function prepare() {
 		export SED=sed
 	fi
 	export TARGET_HOME=$(ssh $TARGET pwd)
+
+	export INSTANCE_BOOTSTRAP_IPADDR=$(echo $INSTANCE_BOOTSTRAP_IPADDR_CIDR | awk -F/ '{print $1}')
 
 	helm repo add jetstack https://charts.jetstack.io
 	helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -76,6 +93,8 @@ function deploy_instance() {
 		return 1
 	fi
 
+	configure_bridge $BRIDGE_SERVICES_NAME $PHYS_IFACE $BRIDGE_SERVICES_VLAN
+
 	if ! incus list "$NAME" -f yaml | grep -q name:; then
 		incus init "$NAME" --empty --vm \
 			-c limits.cpu=3 -c limits.memory=8GiB \
@@ -94,7 +113,10 @@ function deploy_instance() {
 		incus config set "$NAME" security.secureboot=false
 
 		# Bootstrap VLAN
-		incus config device add "$NAME" eth1 nic network="$BRIDGE_NAME"
+		incus config device add "$NAME" eth1 nic network="$BRIDGE_BOOTSTRAP_NAME"
+
+		# Management services VLAN
+		incus config device add "$NAME" eth2 nic network="$BRIDGE_SERVICES_NAME"
 
 		incus start "$NAME"
 	fi
@@ -106,10 +128,16 @@ function deploy_instance() {
 function create_talos_config() {
 	print_milestone "Creating the cloud-init userdata (controlplane.yaml)"
 
+	jinja2 --strict \
+		-D bootstrap_cidr=$INSTANCE_BOOTSTRAP_IPADDR_CIDR \
+		-D services_cidr=$INSTANCE_SERVICES_IPADDR_CIDR \
+		$RING0_ROOT/core-services/management/talos/patch.yaml \
+		-o $RING0_ROOT/dist/cp-patch.yaml
+
 	if [[ ! -f $RING0_ROOT/dist/controlplane.yaml ]]; then
-		talosctl gen config "$NAME" "https://$KUBEAPI_IPADDR:6443" \
-			--config-patch @dist/patch.yaml \
-			--config-patch-control-plane @core-services/management/talos/patch.yaml \
+		talosctl gen config "$NAME" "https://$INSTANCE_BOOTSTRAP_IPADDR:6443" \
+			--config-patch @$RING0_ROOT/dist/patch.yaml \
+			--config-patch-control-plane @$RING0_ROOT/dist/cp-patch.yaml \
 			--install-image "$INSTALL_IMAGE" \
 			-o $RING0_ROOT/dist
 	else
@@ -249,7 +277,7 @@ function bootstrap_kubernetes() {
 
 	print_step "Getting the kubeconfig and using the tailnet IP address"
 	talosctl $talos_opts kubeconfig
-	$SED -i "s,$KUBEAPI_IPADDR,management.$tailscale_suffix," ~/.kube/config
+	$SED -i "s,$INSTANCE_BOOTSTRAP_IPADDR,management.$tailscale_suffix," ~/.kube/config
 
 	print_step "Waiting for the API to respond..."
 	while ! kubectl cluster-info 2>&1 >/dev/null; do
