@@ -12,19 +12,19 @@ This project supports a technical article series on Kubernetes, Proxmox, MicroCl
 
 ```mermaid
 C4Context
-title Micro DC 2-ring principle
+title Micro Cloud 2-ring principle
 
 System_Ext(mesh, "Tailscale Mesh VPN", "Network Mesh VPN / SDN.")
-Person(admin, "Micro DC administrator", "You")
+Person(admin, "Micro Cloud Administrator", "You")
 
-Enterprise_Boundary(mdc, "Micro DC") {
+Enterprise_Boundary(mdc, "Micro Cloud") {
 
     System_Boundary(ring0, "Ring 0 - Management") {
         System(pki, "PKI", "Certificates management")
         System(bootstrap, "Bootstrap", "Pets deployment")
         System(id, "ID Provider", "Managing people")
         System(dcim, "CMDB", "Managing resources", "DCIM, IPAM")
-        System(deployment, "Platform deployer", "Manages Ring 1 resources", "Bare Metal as a Service")
+        System(deployment, "Platform deployer", "Managing Ring 1 resources", "Bare Metal as a Service")
     }
 
     System_Boundary(ring1, "Ring 1 - Workload Hosting") {
