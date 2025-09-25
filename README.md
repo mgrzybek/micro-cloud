@@ -28,7 +28,7 @@ Enterprise_Boundary(mdc, "Micro Cloud") {
     }
 
     System_Boundary(ring1, "Ring 1 - Workload Hosting") {
-        System(cluster, "Cluster", "A system used to host business workloads.")
+        System(cluster, "Cluster", "A system used to <br>host business workloads.")
     }
 }
 
