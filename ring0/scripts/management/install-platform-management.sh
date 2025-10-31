@@ -110,8 +110,6 @@ function install_cmdb_api_gateway() {
 		$MANIFESTS_PATH/04-cmdb/api-gateway.yaml.j2 \
 		-o $RING0_ROOT/dist/cmdb-api-gateway.yaml
 	kubectl apply --wait -f $RING0_ROOT/dist/cmdb-api-gateway.yaml
-	kubectl annotate -n platform-management svc/cilium-gateway-cmdb tailscale.com/hostname=cmdb
-	kubectl annotate -n platform-management svc/cilium-gateway-cmdb tailscale.com/expose=true
 
 	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
 	local svc_ip_addr=$(tailscale status | grep -w cmdb | awk '{print $1}')
@@ -131,9 +129,6 @@ function install_idp_api_gateway() {
 		$MANIFESTS_PATH/03-idp/api-gateway.yaml.j2 \
 		-o $RING0_ROOT/dist/idp-api-gateway.yaml
 	kubectl apply --wait -f $RING0_ROOT/dist/idp-api-gateway.yaml
-
-	kubectl annotate -n platform-management svc/cilium-gateway-idp tailscale.com/hostname=idp
-	kubectl annotate -n platform-management svc/cilium-gateway-idp tailscale.com/expose=true
 
 	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
 	local svc_ip_addr=$(tailscale status | grep -w idp | awk '{print $1}')
