@@ -1,6 +1,16 @@
 cluster:
   allowSchedulingOnControlPlanes: true
   apiServer:
+    certSANs:
+      - management
+      - management.{{ts_suffix}}
+      - {{bootstrap_ipaddr}}
+      - {{services_ipaddr}}
+      - kubernetes
+      - kubernetes.default
+      - kubernetes.default.svc
+      - kubernetes.default.svc.cluster.local
+      - localhost
     admissionControl:
       - name: PodSecurity
         configuration:
@@ -10,6 +20,7 @@ cluster:
             namespaces:
               - local-path-storage
               - tailscale
+              - {{bmaas_namespace}}
   discovery:
     enabled: false
   network:
@@ -32,11 +43,11 @@ machine:
       - interface: enp6s0
         # Assigns static IP addresses to the interface.
         addresses:
-          - {? {bootstrap_cidr: ''} : ''}
+          - {{bootstrap_cidr}}
       - interface: enp7s0
         # Assigns static IP addresses to the interface.
         addresses:
-          - {? {services_cidr: ''} : ''}
+          - {{services_cidr}}
   kubelet:
     extraMounts:
       - destination: /var/local

@@ -130,12 +130,15 @@ EOF
 	systemctl disable kea-ctrl-agent.service kea-dhcp-ddns-server.service
 	systemctl stop kea-ctrl-agent.service kea-dhcp-ddns-server.service
 
+	systemctl disable kea-dhcp6-server.service
+	systemctl stop kea-dhcp6-server.service
+
 	systemctl enable kea-dhcp4-server.service
 	systemctl restart kea-dhcp4-server.service
 
 	echo "✔ Checking services"
 	systemctl status kea-dhcp4-server.service
-	echo
+	return $?
 }
 
 function install_matchbox() {

@@ -37,5 +37,9 @@ fi
 export MANIFESTS_PATH=$RING0_ROOT/core-services/management/manifests
 
 export TS_SUFFIX=$(tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}')
+
 export PKI_IPADDR=$(incus list | awk '/pki/ {print $6}')
 export PKI_ENDPOINT=https://$PKI_IPADDR:8000
+
+export BOOTSTRAP_IPADDR=$(incus list | awk '/bootstrap/ {print $6}')
+export BOOTSTRAP_ENDPOINT=http://$BOOTSTRAP_IPADDR:8080

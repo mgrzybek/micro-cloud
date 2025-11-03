@@ -19,7 +19,7 @@ POOL=default
 DATA_DISK=data
 TALOS_YAML_CONFIG=$RING0_ROOT/dist/controlplane.yaml
 TARGET=headnode-0
-INSTALL_IMAGE=$TALOS_FACTORY_URL/$TALOS_FACTORY_UUID:$TALOS_VERSION
+INSTALL_IMAGE=$TALOS_FACTORY_URL/metal-installer/$TALOS_FACTORY_UUID:$TALOS_VERSION
 
 ################################################################################
 # Starting the tasks

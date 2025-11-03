@@ -1,5 +1,15 @@
 #! /usr/bin/env bash
 
+if [[ -z "$BMAAS_NAMESPACE" ]]; then
+	echo "BMAAS_NAMESPACE must be defined"
+	exit 1
+fi
+
+if [[ -z "$TS_SUFFIX" ]]; then
+	echo "TS_SUFFIX must be defined"
+	exit 1
+fi
+
 if [[ -z "$TS_AUTHKEY" ]]; then
 	echo "TS_AUTHKEY must be defined"
 	exit 1
@@ -128,10 +138,17 @@ function deploy_instance() {
 function create_talos_config() {
 	print_milestone "Creating the cloud-init userdata (controlplane.yaml)"
 
+	local instance_bootstrap_ipaddr="$(echo $INSTANCE_BOOTSTRAP_IPADDR_CIDR | awk -F/ '{print $1}')"
+	local instance_services_ipaddr="$(echo $INSTANCE_SERVICES_IPADDR_CIDR | awk -F/ '{print $1}')"
+
 	jinja2 --strict \
-		-D bootstrap_cidr=$INSTANCE_BOOTSTRAP_IPADDR_CIDR \
-		-D services_cidr=$INSTANCE_SERVICES_IPADDR_CIDR \
-		$RING0_ROOT/core-services/management/talos/patch.yaml \
+		-D bootstrap_ipaddr="$instance_bootstrap_ipaddr" \
+		-D services_ipaddr="$instance_services_ipaddr" \
+		-D bootstrap_cidr="$INSTANCE_BOOTSTRAP_IPADDR_CIDR" \
+		-D services_cidr="$INSTANCE_SERVICES_IPADDR_CIDR" \
+		-D bmaas_namespace="$BMAAS_NAMESPACE" \
+		-D ts_suffix="$TS_SUFFIX" \
+		$RING0_ROOT/core-services/management/talos/patch.yaml.j2 \
 		-o $RING0_ROOT/dist/cp-patch.yaml
 
 	if [[ ! -f $RING0_ROOT/dist/controlplane.yaml ]]; then
@@ -236,14 +253,13 @@ function bootstrap_kubernetes() {
 
 	print_check "Talos internal address is: $MANAGEMENT_IPADDR"
 
-	tailscale ping management
-	while [[ ! $? ]]; do
+	while ! tailscale status | grep -qw management; do
 		echo "Talos address on Tailscale is not set yet. Waiting..."
 		sleep 30
-		tailscale ping management
 	done
+	tailscale ping management
 
-	local talos_opts="-n management -e management --talosconfig=./dist/talosconfig"
+	local talos_opts="-n management -e management --talosconfig=$RING0_ROOT/dist/talosconfig"
 
 	while ! talosctl $talos_opts get disks; do
 		echo "👷 Node not available yet. Waiting..."
@@ -261,14 +277,14 @@ function bootstrap_kubernetes() {
 		rm -f ~/.kube/config
 
 		print_milestone "Getting kubeconfig..."
-		while ! talosctl $talos_opts kubeconfig /dev/null --merge=false; do
+		while ! talosctl $talos_opts kubeconfig - --merge=false; do
 			echo "👷 Node not available yet. Waiting..."
 			sleep 30
 		done
 	fi
 
 	print_check "Checking Tailscale connectivity"
-	while ! tailscale ping $NAME; do
+	while ! tailscale ping $NAME | grep pong; do
 		sleep 30
 	done
 

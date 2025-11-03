@@ -28,6 +28,7 @@ function install_cilium() {
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
 
 	cilium install --values $MANIFESTS_PATH/01-cilium/values.yaml --wait
+	cilium status --wait
 }
 
 function install_cert_manager() {

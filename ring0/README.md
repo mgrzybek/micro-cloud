@@ -214,6 +214,12 @@ Let's deploy the management instance. Some variables can be changed if required.
 # In addition to the previous variables, some must be added.
 export KUBEAPI_IPADDR=192.168.2.3
 export TS_AUTHKEY=xxxxxx
+export TS_OPERATOR_CLIENT_ID=xxxxxx
+export TS_OPERATOR_CLIENT_SECRET=xxxxxx
+
+export BRIDGE_SERVICES_NAME=services0
+export INSTANCE_BOOTSTRAP_IPADDR_CIDR=
+export BMAAS_NAMESPACE=tinkerbell-system
 
 task management
 ```
