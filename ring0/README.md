@@ -8,7 +8,7 @@
 ```mermaid
 C4Container
 
-Person(admin, "Micro DC administrator", "You")
+Person(admin, "Micro Cloud administrator", "You")
 System_Ext(mesh, "Tailscale Mesh VPN", "Network Mesh VPN / SDN.")
 
 Enterprise_Boundary(ring0, "Ring 0 - Management") {
@@ -26,7 +26,7 @@ Rel(admin, headnode, "has physical access<br> and manages")
 ```mermaid
 C4Container
 
-Person(admin, "Micro DC administrator", "You")
+Person(admin, "Micro Cloud administrator", "You")
 System_Ext(mesh, "Tailscale Mesh VPN", "Network Mesh VPN / SDN.")
 
 Enterprise_Boundary(ring0, "Ring 0 - Management") {
@@ -46,7 +46,7 @@ Rel(bootstrap, management, "installs")
 ```mermaid
 C4Component
 
-Person(admin, "Micro DC administrator", "You")
+Person(admin, "Micro Cloud administrator", "You")
 System_Ext(mesh, "Tailscale Mesh VPN", "Network Mesh VPN / SDN.")
 
 Enterprise_Boundary(ring0, "Ring 0") {
@@ -185,17 +185,25 @@ First, we need to create the bootstrap instance and to configure it.
 The `task bootstrap` command will set up the bootstrap instance with the network bridge, VLAN, and physical interface specified, and prepare the Talos artifacts required for deployment. Talos is a Kubernetes-native, minimal OS for managing bare metal clusters (https://talos.dev).
 
 ```bash
-export BRIDGE_NAME=bootstrapbr0         # Depending on your incus configuration
-export BRIDGE_VLAN=2                    # Depending on your network fabric
-export PHYS_IFACE=enp2s0                # Depending on your machine's configuration
-export IFACE_IPADDR_CIDR=192.168.2.2/24 # Depending on your network fabric
+export BRIDGE_BOOTSTRAP_NAME=bootstrapbr0         # Depending on your incus configuration
+export BRIDGE_BOOTSTRAP_VLAN=2                    # Depending on your network fabric
+export PHYS_IFACE=enp2s0                          # Depending on your machine's configuration
+export IFACE_BOOTSTRAP_IPADDR_CIDR=192.168.2.2/24 # Depending on your network fabric
 
 # Talos attributes used to download the artifacts
-export TALOS_FACTORY_URL=factory.talos.dev/metal-installer
+export TALOS_FACTORY_URL=factory.talos.dev
 export TALOS_FACTORY_UUID=a78ca499dd99112bd2c2730b1b8a50375d8fa3af36f1a10b30a2fa83cc8c0d35
 export TALOS_VERSION=v1.10.4
 
 task bootstrap
+```
+
+## Bootstrapping the forge
+
+Let's deployment the forge. It will be used to create custom artifacts later on.
+
+```shell
+task forge
 ```
 
 ## Bootstrapping the management node
@@ -232,6 +240,14 @@ export CLIENT_ID=xxxxx
 export CLIENT_SECRET=xxxxx
 
 task cmdb
+```
+
+### Configuring Tinkerbell
+
+```shell
+export MANAGEMENT_SERVICE_IPADDR=192.168.3.3
+
+task bmaas
 ```
 
 ## Troubleshooting

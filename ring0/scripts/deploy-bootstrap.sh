@@ -100,11 +100,15 @@ function main() {
 }
 
 function prepare() {
+	print_milestone "Preparing"
+
 	export TLD=$(tailscale dns status | awk '/MagicDNS:/ {gsub(")","") ; print $NF}')
 	if [[ -z "$TLD" ]]; then
 		echo "Error getting Tailscale's TLD"
 		exit 1
 	fi
+
+	export SERVER_ADDR=$(echo "$IFACE_BOOTSTRAP_IPADDR_CIDR" | awk -F/ '{print $1}')
 
 	cat <<EOF | tee dist/$INSTANCE.sh
 SERVER_ADDR=$SERVER_ADDR
@@ -117,7 +121,6 @@ TALOS_VERSION=$TALOS_VERSION
 TALOS_FACTORY_URL=$TALOS_FACTORY_URL
 EOF
 
-	export SERVER_ADDR=$(echo "$IFACE_BOOTSTRAP_IPADDR_CIDR" | awk -F/ '{print $1}')
 }
 
 function create_instance() {
@@ -137,6 +140,8 @@ function create_instance() {
 }
 
 function configure_instance() {
+	print_milestone "Configuring instance"
+
 	incus file push dist/$INSTANCE.sh bootstrap/etc/cloud.sh
 	incus exec $INSTANCE -- bash <core-services/bootstrap/debian-$INSTANCE-cloud-init.sh
 }

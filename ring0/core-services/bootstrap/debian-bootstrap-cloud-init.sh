@@ -13,7 +13,6 @@ function main() {
 	prepare_matchbox_ipxe
 	prepare_matchbox_flatcar
 	prepare_matchbox_talos
-	prepare_matchbox_ironic
 
 	install_machinecfg
 	install_butane
@@ -56,16 +55,15 @@ function install_kea() {
 	echo "#####################"
 	echo "👷 Installing kea dhcp server"
 
-	if ! which /usr/sbin/kea-dhcp4; then
-		mkdir -p /etc/systemd/system/kea-dhcp4-server.d
-		cat <<EOF | tee /etc/systemd/system/kea-dhcp4-server.d/networking.conf
+	mkdir -p /etc/systemd/system/kea-dhcp4-server.d
+	cat <<EOF | tee /etc/systemd/system/kea-dhcp4-server.d/networking.conf
 [Service]
 After=bootstrap-network.service
 EOF
 
-		apt install -y kea
+	apt install -y kea
 
-		cat <<EOF | tee /etc/kea/kea-dhcp4.conf
+	cat <<EOF | tee /etc/kea/kea-dhcp4.conf
 {
     "Dhcp4": {
         "valid-lifetime": 4000,
@@ -123,17 +121,17 @@ EOF
     }
 }
 EOF
-		systemctl daemon-reload
 
-		systemctl enable bootstrap-network.service
-		systemctl start bootstrap-network.service
+	systemctl daemon-reload
 
-		systemctl disable kea-ctrl-agent.service kea-dhcp-ddns-server.service
-		systemctl stop kea-ctrl-agent.service kea-dhcp-ddns-server.service
+	systemctl enable bootstrap-network.service
+	systemctl start bootstrap-network.service
 
-		systemctl enable kea-dhcp4-server.service
-		systemctl restart kea-dhcp4-server.service
-	fi
+	systemctl disable kea-ctrl-agent.service kea-dhcp-ddns-server.service
+	systemctl stop kea-ctrl-agent.service kea-dhcp-ddns-server.service
+
+	systemctl enable kea-dhcp4-server.service
+	systemctl restart kea-dhcp4-server.service
 
 	echo "✔ Checking services"
 	systemctl status kea-dhcp4-server.service
@@ -258,7 +256,7 @@ function prepare() {
 
 	if [[ ! -f "$CLOUD_CONFIG" ]]; then
 		echo "$CLOUD_CONFIG must be present"
-		exit 1
+		return 1
 	fi
 
 	source "$CLOUD_CONFIG"
@@ -272,11 +270,10 @@ function prepare() {
 		apt -y install curl git make wget gcc liblzma-dev
 	fi
 
-	if ! ip addr show | grep -q "$SERVER_ADDR"; then
-		echo "#####################"
-		echo "👷 Configuring the netboot iface"
+	echo "#####################"
+	echo "👷 Configuring the netboot iface"
 
-		cat <<EOF | tee /etc/systemd/system/bootstrap-network.service
+	cat <<EOF | tee /etc/systemd/system/bootstrap-network.service
 [Unit]
 Description=Bootstrap network configuration
 Wants=network-online.target
@@ -287,9 +284,8 @@ RequiredBy=kea-dhcp4-server.service
 
 [Service]
 Type=oneshot
-ExecStart=/bin/bash -c "ip addr add dev eth1 $SERVER_CIDR"
+ExecStart=/bin/bash -c "if ! ip addr show | grep -q $SERVER_CIDR ; then ip addr add dev eth1 $SERVER_CIDR ; fi"
 EOF
-	fi
 
 }
 
@@ -439,22 +435,6 @@ function prepare_matchbox_flatcar() {
 	download_if_needed "$base_url" "flatcar_production_image.bin.bz2.sig"
 
 	echo "✔ Checking binaries"
-	find $assets
-	echo
-}
-
-function prepare_matchbox_ironic() {
-	echo "#####################"
-	echo "👷 Installing assets for Ironic"
-
-	assets=/var/lib/matchbox/assets/ironic
-
-	mkdir -p "$assets"
-	cd "$assets"
-	download_if_needed https://tarballs.opendev.org/openstack/ironic-python-agent/dib ipa-centos9-master.tar.gz
-	echo "ETag: $(stat --printf=%Z ipa-centos9-master.tar.gz)" >ipa-centos9-master.tar.gz.headers
-
-	echo "✔ Checking assets"
 	find $assets
 	echo
 }
