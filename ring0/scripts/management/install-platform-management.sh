@@ -68,8 +68,8 @@ function install_local_path_provisioner() {
 
 	local PROVISIONER_VERSION=v0.0.31
 
-	curl -o $MANIFESTS_PATH/01-storage/local-path-storage.yaml https://raw.githubusercontent.com/rancher/local-path-provisioner/$PROVISIONER_VERSION/deploy/local-path-storage.yaml
-	kubectl apply --wait -k $MANIFESTS_PATH/01-storage/
+	curl -o $RING0_ROOT/dist/local-path-storage.yaml https://raw.githubusercontent.com/rancher/local-path-provisioner/$PROVISIONER_VERSION/deploy/local-path-storage.yaml
+	kubectl apply --wait -f $RING0_ROOT/dist/local-path-storage.yaml
 }
 
 function install_cnpg() {
