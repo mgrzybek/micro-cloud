@@ -34,12 +34,7 @@ function install_cilium() {
 function install_cert_manager() {
 	print_milestone "Installing cert-manager"
 
-	local PKI_AUTH_KEY_FILE="$RING0_ROOT/dist/auth.key"
-	if [[ ! -f "$PKI_AUTH_KEY_FILE" ]]; then
-		echo "$PKI_AUTH_KEY_FILE must be present"
-		return 1
-	fi
-	local PKI_AUTH_KEY=$(cat $PKI_AUTH_KEY_FILE)
+	local PKI_AUTH_KEY="$(incus exec pki -- jq -r '.auth_keys.default.key' /var/lib/pki/files/config/config.json)"
 
 	cat <<EOF | yq >$RING0_ROOT/dist/cfssl.yaml
 ---
