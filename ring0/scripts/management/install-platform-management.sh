@@ -66,10 +66,12 @@ EOF
 function install_local_path_provisioner() {
 	print_milestone "Installing local path provisioner"
 
-	local PROVISIONER_VERSION=v0.0.31
+	local PROVISIONER_VERSION=v0.0.32
 
 	curl -o $RING0_ROOT/dist/local-path-storage.yaml https://raw.githubusercontent.com/rancher/local-path-provisioner/$PROVISIONER_VERSION/deploy/local-path-storage.yaml
 	kubectl apply --wait -f $RING0_ROOT/dist/local-path-storage.yaml
+
+	kubectl patch storageclass local-path -p '{"metadata": {"annotations":{"storageclass.kubernetes.io/is-default-class":"true"}}}'
 }
 
 function install_cnpg() {
