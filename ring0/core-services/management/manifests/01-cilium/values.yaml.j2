@@ -1,0 +1,51 @@
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+gatewayAPI:
+  enabled: true
+  hostNetwork:
+    enabled: false
+
+envoy:
+  securityContext:
+    capabilities:
+      keepCapNetBindService: true
+
+securityContext:
+  capabilities:
+    ciliumAgent: ["CHOWN", "KILL", "NET_ADMIN", "NET_RAW", "IPC_LOCK", "SYS_ADMIN", "SYS_RESOURCE", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+    cleanCiliumState: ["NET_ADMIN", "SYS_ADMIN", "SYS_RESOURCE"]
+
+ipam:
+  mode: kubernetes
+
+hubble:
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+    service:
+      annotations:
+        tailscale.com/expose: "true"
+        tailscale.com/hostname: hubble
+
+k8sServiceHost: localhost
+kubeProxyReplacement: true
+
+externalIPs:
+  enabled: true
+
+l7Proxy: true
+
+l2announcements:
+  enabled: true
+  interface: {{announcements_iface}}
+  leaseDuration: 3s
+  leaseRenewDeadline: 1s
+  leaseRetryPeriod: 500ms
+
+k8sClientRateLimit:
+  qps: 5
+  burst: 10

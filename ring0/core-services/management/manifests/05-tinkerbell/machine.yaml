@@ -1,0 +1,43 @@
+apiVersion: tinkerbell.org/v1alpha1
+kind: Hardware
+metadata:
+  name: test-vm
+  namespace: tinkerbell-system
+spec:
+  disks:
+    - device: /dev/sda
+  interfaces:
+    - dhcp:
+        arch: x86_64
+        hostname: test-vm
+        ip:
+          address: 192.168.3.148
+          gateway: 192.168.3.1
+          netmask: 255.255.255.0
+        lease_time: 86400
+        mac: 10:66:6a:07:8d:0d
+        name_servers:
+          - 192.168.3.7
+        uefi: true
+      netboot:
+        allowPXE: true
+        allowWorkflow: true
+---
+apiVersion: tinkerbell.org/v1alpha1
+kind: Template
+metadata:
+  name: test-template
+  namespace: tinkerbell-system
+spec:
+  data: "name: test-template\nversion: \"0.1\"\nglobal_timeout: 600\ntasks:\n  - name: \"os installation\"\n    worker: \"10:66:6a:07:8d:0d\"\n    volumes:\n      - /dev:/dev\n      - /dev/console:/dev/console\n    actions:\n      - name: \"echome\"\n        image: registry.ring0:5000/jacobweinstock/waitdaemon:latest\n        #image: ghcr.io/jacobweinstock/waitdaemon:latest \n        timeout: 600\n        pid: host\n        command:\n          - echo \"Hello, this is {{ .machine_mac }}\"\n          - echo \"Ending script here\"\n        environment:\n          IMAGE: alpine\n          WAIT_SECONDS: 60\n        volumes:\n          - /var/run/docker.sock:/var/run/docker.sock\n"
+---
+apiVersion: tinkerbell.org/v1alpha1
+kind: Workflow
+metadata:
+  name: test-workflow
+  namespace: tinkerbell-system
+spec:
+  templateRef: test-template
+  hardwareRef: test-vm
+  hardwareMap:
+    machine_mac: 10:66:6a:07:8d:0d

@@ -13,6 +13,10 @@ tasks:
     deps: [intermediate-fullchain]
     cmd: bash ./scripts/deploy-bootstrap.sh
 
+  forge:
+    desc: Deploy the forge instance
+    cmd: bash ./scripts/deploy-forge.sh
+
 ##
 ## Platform
 ##
@@ -27,6 +31,10 @@ tasks:
   cmdb:
     desc: Deploy the CMDB using Helm
     cmd: bash ./scripts/deploy-cmdb.sh
+
+  bmaas:
+    desc: Deploy the BMaaS and the OCI registry using helm
+    cmd: bash ./scripts/deploy-bmaas.sh
 
 ##
 ## Dangerous tasks

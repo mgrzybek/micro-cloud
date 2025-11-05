@@ -1,0 +1,50 @@
+deployment:
+  agentImage: registry.ring0:5000/tinkerbell/tink-agent
+
+  hostNetwork: true
+  image: ghcr.io/tinkerbell/tinkerbell
+
+  envs:
+    globals:
+      enableRufioController: false
+      enableSecondstar: false
+
+    smee:
+      dhcpBindInterface: {{dhcp_bind_interface}}
+      ipxeHttpScriptExtraKernelArgs:
+      - console=ttyS0
+      - insecure_registries=registry.ring0:5000
+
+    tinkController:
+      enableLeaderElection: false # This is a mono-node cluster.
+
+  tinkServer:
+    autoDiscoveryAutoEnrollmentEnabled: true
+    autoDiscoveryEnabled: true
+
+optional:
+  hookos:
+    hostNetwork: false
+    arch: x86_64
+    downloadURL: {{bootstrap_endpoint}}
+    kernelVersion: both
+    service:
+      annotations:
+        io.cilium/lb-ipam-ips: {{hookos_ip}}
+      labels:
+        ring0/services: "true"
+      lbClass:
+
+  kubevip:
+    enabled: false
+    interface: enp7s0
+
+service:
+  annotations:
+    io.cilium/lb-ipam-ips: {{tinkerbell_ip}}
+  labels:
+    ring0/services: "true"
+  lbClass:
+
+publicIP: {{tinkerbell_ip}}
+artifactsFileServer: {{artifacts_file_server}}

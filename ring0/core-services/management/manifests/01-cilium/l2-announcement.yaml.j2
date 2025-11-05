@@ -1,0 +1,26 @@
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: ring0-services-pool-l2
+  namespace: kube-system
+spec:
+  blocks:
+  - cidr: {{dns_ip}}/32
+  - cidr: {{hookos_ip}}/32
+  - cidr: {{registry_ip}}/32
+  - cidr: {{tinkerbell_ip}}/32
+  serviceSelector:
+    matchLabels:
+      ring0/services: "true"
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: ring0-services
+  namespace: kube-system
+spec:
+  interfaces:
+  - {{announcement_interface}}
+  externalIPs: false
+  loadBalancerIPs: true

@@ -1,0 +1,215 @@
+{% if tailscale_ip_address | length > 0 %}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: registry-mesh-endpoint
+  namespace: {{namespace}}
+spec:
+  secretName: registry-mesh-endpoint
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  subject:
+    organizations:
+      - {{pki_org}}
+  commonName: registry.{{ts_suffix}}
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  usages:
+    - server auth
+  dnsNames:
+    - registry.{{ts_suffix}}
+    - registry
+  uris:
+    - spiffe://cluster.local/ns/default/sa/default
+  ipAddresses:
+    - {{tailscale_ip_address}}
+  issuerRef:
+    name: cfssl-internal-ca
+    kind: ClusterIssuer
+    group: cfssl-issuer.wikimedia.org
+{% endif %}
+{% if external_ip | length > 0 and external_ip != "null" %}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: registry-ring0-endpoint
+  namespace: {{namespace}}
+spec:
+  secretName: registry-ring0-endpoint
+  duration: 2160h # 90d
+  renewBefore: 360h # 15d
+  subject:
+    organizations:
+      - {{pki_org}}
+  commonName: registry.ring0
+  isCA: false
+  privateKey:
+    algorithm: RSA
+    encoding: PKCS1
+    size: 2048
+  usages:
+    - server auth
+  dnsNames:
+    - registry.ring0
+    - registry
+  uris:
+    - spiffe://cluster.local/ns/default/sa/default
+  ipAddresses:
+    - {{external_ip}}
+  issuerRef:
+    name: cfssl-internal-ca
+    kind: ClusterIssuer
+    group: cfssl-issuer.wikimedia.org
+{% endif %}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: registry
+  namespace: {{namespace}}
+spec:
+  gatewayClassName: cilium
+  infrastructure:
+    annotations:
+      tailscale.com/expose: "true"
+      tailscale.com/hostname: registry
+  listeners:
+{% if tailscale_ip_address | length > 0 %}
+  - protocol: HTTPS
+    port: 443
+    name: registry-https
+    allowedRoutes:
+      namespaces:
+        from: Same
+    hostname: registry.{{ts_suffix}}
+    tls:
+      certificateRefs:
+      - kind: Secret
+        name: registry-mesh-endpoint
+      mode: Terminate
+{% else %}
+  - protocol: HTTP
+    port: 80
+    name: registry-http
+    allowedRoutes:
+      namespaces:
+        from: Same
+    hostname: registry.{{ts_suffix}}
+{% endif %}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-zot
+  namespace: {{namespace}}
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: registry
+    namespace: {{namespace}}
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: zot
+      port: 5000
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-zot-config
+  namespace: {{namespace}}
+data:
+  zot.conf: |
+    resolver {{dns_resolver}} valid=5s;
+    server {
+        listen 5000 ssl;
+        server_name registry.ring0;
+
+        ssl_certificate /etc/nginx/ssl/tls.crt;
+        ssl_certificate_key /etc/nginx/ssl/tls.key;
+
+        # Configuration TLS standard (optionnel, mais recommandé)
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        ssl_prefer_server_ciphers on;
+
+        location / {
+            set $zot_target "zot.{{namespace}}.svc.cluster.local";
+            proxy_pass http://$zot_target:5000;
+            
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_redirect off;
+        }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-zot-proxy
+  namespace: {{namespace}}
+  labels:
+    app: nginx-proxy
+spec:
+  replicas: 1 # Ajustez si nécessaire, mais attention en mode hostNetwork
+  selector:
+    matchLabels:
+      app: nginx-zot-proxy
+  template:
+    metadata:
+      labels:
+        app: nginx-zot-proxy
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:latest
+        ports:
+        - containerPort: 5000
+          hostPort: 5000
+          protocol: TCP
+        volumeMounts:
+        - name: tls-secret-volume
+          mountPath: /etc/nginx/ssl
+          readOnly: true
+        - name: nginx-config-volume
+          mountPath: /etc/nginx/conf.d
+          readOnly: true
+      volumes:
+      - name: tls-secret-volume
+        secret:
+          secretName: registry-ring0-endpoint
+      - name: nginx-config-volume
+        configMap:
+          name: nginx-zot-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-ring0-endpoint
+  namespace: tinkerbell-system
+  labels:
+    app: nginx-ring0-endpoint-svc
+    ring0/services: "true"
+spec:
+  type: LoadBalancer
+  ports:
+    - name: https
+      port: 5000
+      targetPort: 5000
+      protocol: TCP
+  selector:
+    app: nginx-zot-proxy

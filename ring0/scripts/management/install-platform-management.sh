@@ -19,15 +19,21 @@ function create_namespaces() {
 function install_cilium() {
 	print_milestone "Installing cilium"
 
-	local GW_API_VERSION=v1.2.0
+	local gw_api_version=v1.2.0
+	local management_services_interface=$(talosctl --talosconfig $RING0_ROOT/dist/talosconfig -n management -e management get addresses | grep $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')
 
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
-	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$GW_API_VERSION/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_gateways.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
 
-	cilium install --values $MANIFESTS_PATH/01-cilium/values.yaml --wait
+	jinja2 --strict \
+		-D announcements_iface=$management_services_interface \
+		$MANIFESTS_PATH/01-cilium/values.yaml.j2 \
+		-o $RING0_ROOT/dist/cilium-values.yaml
+
+	cilium install --values $RING0_ROOT/dist/cilium-values.yaml
 	cilium status --wait
 }
 
