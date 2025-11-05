@@ -14,6 +14,26 @@ This project supports a technical article series on Kubernetes, Proxmox, MicroCl
 C4Context
 title Micro Cloud 2-ring principle
 
+
+System_Ext(mesh, "Tailscale Mesh VPN", "Network Mesh VPN / SDN.")
+Person(admin, "Micro Cloud Administrator", "You")
+Enterprise_Boundary(mdc, "Micro Cloud") {
+    System(ring0, "Undercloud - Management<br>Ring0")
+    System(ring1, "Cloud<br>Ring1")
+}
+
+Rel(ring0, ring1, "Creates<br>and manages")
+Rel(ring0, mesh, "Is connected")
+Rel(ring1, mesh, "Is connected")
+Rel(admin, mesh, "Is connected")
+
+UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="2")
+```
+
+```mermaid
+C4Context
+title Micro Cloud 2-ring principle
+
 System_Ext(mesh, "Tailscale Mesh VPN", "Network Mesh VPN / SDN.")
 Person(admin, "Micro Cloud Administrator", "You")
 
@@ -23,8 +43,8 @@ Enterprise_Boundary(mdc, "Micro Cloud") {
         System(pki, "PKI", "Certificates management")
         System(bootstrap, "Bootstrap", "Pets deployment")
         System(id, "ID Provider", "Managing people")
-        System(dcim, "CMDB", "Managing resources", "DCIM, IPAM")
         System(deployment, "Platform deployer", "Managing Ring 1 resources", "Bare Metal as a Service")
+        System(dcim, "CMDB", "Managing resources", "DCIM, IPAM")
     }
 
     System_Boundary(ring1, "Ring 1 - Workload Hosting") {
@@ -57,7 +77,7 @@ The project relies on a home server rack composed of:
 - 1x Ubiquity Flex 2.5G Switch
 - 1x NUCBox G5 N97 for ring0 (management services)
 - 1x NUCBox G5 N97 for ring1 (hosting environments)
-- 4 x NUCBox G3 Plus for ring1 (hosting environments)
+- 4x NUCBox G3 Plus for ring1 (hosting environments)
 
 ## Technology Stack
 
