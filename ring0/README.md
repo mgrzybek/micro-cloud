@@ -212,14 +212,17 @@ Let's deploy the management instance. Some variables can be changed if required.
 
 ```shell
 # In addition to the previous variables, some must be added.
-export KUBEAPI_IPADDR=192.168.2.3
 export TS_AUTHKEY=xxxxxx
 export TS_OPERATOR_CLIENT_ID=xxxxxx
 export TS_OPERATOR_CLIENT_SECRET=xxxxxx
 
 export BRIDGE_SERVICES_NAME=services0
-export INSTANCE_BOOTSTRAP_IPADDR_CIDR=
-export BMAAS_NAMESPACE=tinkerbell-system
+export INSTANCE_MANAGEMENT_BOOTSTRAP_IPADDR_CIDR=192.168.2.3/24
+
+export BRIDGE_SERVICES_NAME=services0
+export INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR=192.168.3.3/24
+
+export BMAAS_NAMESPACE=bmaas-system
 
 task management
 ```
@@ -251,7 +254,10 @@ task cmdb
 ### Configuring Tinkerbell
 
 ```shell
-export MANAGEMENT_SERVICE_IPADDR=192.168.3.3
+export REGISTRY_IP=192.168.3.4
+export TINKERBELL_IP=192.168.3.5
+export HOOKOS_IP=192.168.3.6
+export DNS_IP=192.168.3.7
 
 task bmaas
 ```
@@ -284,7 +290,7 @@ For more detailed help, visit the documentation and communities of the respectiv
 - [Tailscale](https://tailscale.com/kb/)  
 - [Talos](https://talos.dev/docs/)  
 - [Kamaji](https://kamaji.io/)  
-- [Ironic Baremetal](https://book.metal3.io/irso/install-basics)
+- [Tinkerbell](https://tinkerbell.org/)
 - [Cert-manager](https://cert-manager.io/docs/)  
 - [Authentik](https://docs.goauthentik.io/docs/install-config/)
 - [Netbox](https://netbox.readthedocs.io/en/stable/)  

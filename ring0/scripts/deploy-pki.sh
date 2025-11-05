@@ -5,7 +5,7 @@ set -e
 INSTANCE=pki
 PKI_ROOT=/var/lib/pki
 
-RING0_ROOT="$(find $PWD -type d -name ring0)"
+RING0_ROOT=$(find $PWD -type f | grep ring0 | head -n1 | sed 's,ring0.*,ring0,')
 
 ################################################################################
 # External libraries

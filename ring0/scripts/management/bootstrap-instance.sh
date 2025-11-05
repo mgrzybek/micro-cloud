@@ -40,13 +40,13 @@ if [[ -z "$PHYS_IFACE" ]]; then
 	exit 1
 fi
 
-if [[ -z "$INSTANCE_BOOTSTRAP_IPADDR_CIDR" ]]; then
-	echo "INSTANCE_BOOTSTRAP_IPADDR_CIDR must be given"
+if [[ -z "$INSTANCE_MANAGEMENT_BOOTSTRAP_IPADDR_CIDR" ]]; then
+	echo "INSTANCE_MANAGEMENT_BOOTSTRAP_IPADDR_CIDR must be given"
 	exit 1
 fi
 
-if [[ -z "$INSTANCE_SERVICES_IPADDR_CIDR" ]]; then
-	echo "INSTANCE_SERVICES_IPADDR_CIDR must be given"
+if [[ -z "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" ]]; then
+	echo "INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR must be given"
 	exit 1
 fi
 
@@ -73,7 +73,7 @@ function prepare() {
 	fi
 	export TARGET_HOME=$(ssh $TARGET pwd)
 
-	export INSTANCE_BOOTSTRAP_IPADDR=$(echo $INSTANCE_BOOTSTRAP_IPADDR_CIDR | awk -F/ '{print $1}')
+	export INSTANCE_BOOTSTRAP_IPADDR=$(echo $INSTANCE_MANAGEMENT_BOOTSTRAP_IPADDR_CIDR | awk -F/ '{print $1}')
 
 	helm repo add jetstack https://charts.jetstack.io
 	helm repo add cnpg https://cloudnative-pg.github.io/charts
@@ -138,21 +138,21 @@ function deploy_instance() {
 function create_talos_config() {
 	print_milestone "Creating the cloud-init userdata (controlplane.yaml)"
 
-	local instance_bootstrap_ipaddr="$(echo $INSTANCE_BOOTSTRAP_IPADDR_CIDR | awk -F/ '{print $1}')"
-	local instance_services_ipaddr="$(echo $INSTANCE_SERVICES_IPADDR_CIDR | awk -F/ '{print $1}')"
+	local instance_bootstrap_ipaddr="$(echo $INSTANCE_MANAGEMENT_BOOTSTRAP_IPADDR_CIDR | awk -F/ '{print $1}')"
+	local instance_services_ipaddr="$(echo $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR | awk -F/ '{print $1}')"
 
 	jinja2 --strict \
 		-D bootstrap_ipaddr="$instance_bootstrap_ipaddr" \
 		-D services_ipaddr="$instance_services_ipaddr" \
-		-D bootstrap_cidr="$INSTANCE_BOOTSTRAP_IPADDR_CIDR" \
-		-D services_cidr="$INSTANCE_SERVICES_IPADDR_CIDR" \
+		-D bootstrap_cidr="$INSTANCE_MANAGEMENT_BOOTSTRAP_IPADDR_CIDR" \
+		-D services_cidr="$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" \
 		-D bmaas_namespace="$BMAAS_NAMESPACE" \
 		-D ts_suffix="$TS_SUFFIX" \
 		$RING0_ROOT/core-services/management/talos/patch.yaml.j2 \
 		-o $RING0_ROOT/dist/cp-patch.yaml
 
 	if [[ ! -f $RING0_ROOT/dist/controlplane.yaml ]]; then
-		talosctl gen config "$NAME" "https://$INSTANCE_BOOTSTRAP_IPADDR:6443" \
+		talosctl gen config "$NAME" "https://management.$TS_SUFFIX:6443" \
 			--config-patch @$RING0_ROOT/dist/patch.yaml \
 			--config-patch-control-plane @$RING0_ROOT/dist/cp-patch.yaml \
 			--install-image "$INSTALL_IMAGE" \
@@ -257,7 +257,6 @@ function bootstrap_kubernetes() {
 		echo "Talos address on Tailscale is not set yet. Waiting..."
 		sleep 30
 	done
-	tailscale ping management
 
 	local talos_opts="-n management -e management --talosconfig=$RING0_ROOT/dist/talosconfig"
 
