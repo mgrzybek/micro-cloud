@@ -32,7 +32,6 @@ spec:
     kind: ClusterIssuer
     group: cfssl-issuer.wikimedia.org
 {% endif %}
-{% if external_ip | length > 0 and external_ip != "null" %}
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -65,7 +64,6 @@ spec:
     name: cfssl-internal-ca
     kind: ClusterIssuer
     group: cfssl-issuer.wikimedia.org
-{% endif %}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -134,18 +132,20 @@ data:
   zot.conf: |
     resolver {{dns_resolver}} valid=5s;
     server {
+        # This is the classic and expected registry's port.
         listen 5000 ssl;
         server_name registry.ring0;
 
         ssl_certificate /etc/nginx/ssl/tls.crt;
         ssl_certificate_key /etc/nginx/ssl/tls.key;
 
-        # Configuration TLS standard (optionnel, mais recommandé)
+        # Standard TLS options.
         ssl_protocols TLSv1.2 TLSv1.3;
         ssl_ciphers HIGH:!aNULL:!MD5;
         ssl_prefer_server_ciphers on;
 
         location / {
+            # DNS request is made on call, not at pod startup
             set $zot_target "zot.{{namespace}}.svc.cluster.local";
             proxy_pass http://$zot_target:5000;
             
@@ -165,7 +165,7 @@ metadata:
   labels:
     app: nginx-proxy
 spec:
-  replicas: 1 # Ajustez si nécessaire, mais attention en mode hostNetwork
+  replicas: 1
   selector:
     matchLabels:
       app: nginx-zot-proxy
@@ -199,6 +199,8 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
+  annotations:
+    io.cilium/lb-ipam-ips: {{external_ip}}
   name: nginx-ring0-endpoint
   namespace: tinkerbell-system
   labels:
