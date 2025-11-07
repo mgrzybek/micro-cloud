@@ -170,6 +170,7 @@ function push_csr() {
 EOF
 
 	incus file push "$BUFFER/$CSR" "pki/$PKI_ROOT/certificates/$CSR"
+	rm -f "$BUFFER/$CSR"
 }
 
 function create_certificates() {

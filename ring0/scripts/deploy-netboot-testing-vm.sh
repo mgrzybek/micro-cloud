@@ -15,6 +15,14 @@ if [[ -z "$BRIDGE_SERVICES_NAME" ]]; then
 	exit 1
 fi
 
+function create_tinkerbell_machine() {
+	kubectl apply -f $MANIFESTS_PATH/05-tinkerbell/testing-machine.yaml
+}
+
+function delete_tinkerbell_machine() {
+	kubectl delete -f $MANIFESTS_PATH/05-tinkerbell/testing-machine.yaml
+}
+
 function deploy_instance() {
 	NAME="$1"
 
@@ -44,4 +52,6 @@ function deploy_instance() {
 	fi
 }
 
+create_tinkerbell_machine
 deploy_instance testing
+delete_tinkerbell_machine
