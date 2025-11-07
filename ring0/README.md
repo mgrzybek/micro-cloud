@@ -65,7 +65,7 @@ Enterprise_Boundary(ring0, "Ring 0") {
             Component(issuer, "Provides certificates", "helm, cert-manager, cfssl-issuer")
             Component(id, "ID Provider", "helm, authentik")
             Component(dcim, "CMDB", "helm, netbox")
-            Component(deployment, "Platform deployer", "helm, kamaji, ironic")
+            Component(deployment, "Platform deployer", "helm, kamaji, kamaji")
         }
     }
 }
@@ -127,7 +127,7 @@ graph
     subgraph middlewares["Management middlewares"]
         authentik["Identity Provider"] -- A users' database is ready to be used     --> netbox["CMDB + DCIM + IPAM"]
         kamaji["Kubernetes Controlplane as a Service"]
-        ironic["Baremetal manager"] -- Ironic has been installed using the operator --> metal3["Kubernetes nodes manager"]
+        tinkerbell["Baremetal manager"] -- Tinkerbell has been installed using the operator
     end
 
     system --> middlewares

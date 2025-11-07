@@ -85,7 +85,7 @@ The project relies on a home server rack composed of:
 - **Containerization:** Incus (LXC / KVM)
 - **PKI:** cfssl, cert-manager, multirootca
 - **Bootstrapping:** kea, matchbox, Talos
-- **Orchestration:** Kubernetes, Kamaji, Metal3, Ironic
+- **Orchestration:** Kubernetes, Kamaji, Metal3, Tinkerbell
 - **Middleware:** Netbox, Authentik
 
 ## Getting Started
