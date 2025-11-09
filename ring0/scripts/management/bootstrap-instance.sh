@@ -303,3 +303,13 @@ function bootstrap_kubernetes() {
 	print_check "Cluster available"
 	kubectl cluster-info
 }
+
+function desactivate_netboot_on_instance() {
+	print_milestone "Eject ipe iso image from $INSTANCE"
+
+	if incus config device list $INSTANCE | grep -q ipxe; then
+		incus config device delete "$NAME" ipxe
+	fi
+
+	print_check "ipxe iso image removed from $INSTANCE"
+}

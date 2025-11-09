@@ -37,6 +37,8 @@ create_group
 deploy_instance
 bootstrap_kubernetes
 
+desactivate_netboot_on_instance
+
 create_namespaces
 
 if ! helm list -n kube-system | grep cilium | grep deployed; then
