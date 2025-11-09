@@ -5,3 +5,7 @@ dist/
 ring0/core-services/pki/files
 *.pem
 *.csr
+
+# Tooling
+.vscode
+.task
