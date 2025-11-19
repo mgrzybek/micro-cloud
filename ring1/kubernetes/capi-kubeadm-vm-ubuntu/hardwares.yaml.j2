@@ -3,7 +3,7 @@ apiVersion: tinkerbell.org/v1alpha1
 kind: Hardware
 metadata:
   name: node-1
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
   labels: # Labels are optional, and can be used for machine selection later
     kubernetes: "true"
 spec:
@@ -34,7 +34,7 @@ apiVersion: tinkerbell.org/v1alpha1
 kind: Hardware
 metadata:
   name: node-2
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
   labels: # Labels are optional, and can be used for machine selection later
     kubernetes: "true"
 spec:

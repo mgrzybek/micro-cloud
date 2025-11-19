@@ -38,6 +38,10 @@ tasks:
   # 
   deploy-nodes:
     desc: Create Hardware objects and start virtual instances
+    preconditions:
+      - echo $TINKERBELL_IP | fgrep  .
+      - echo $DNS_IP | fgrep  .
+      - echo $BMAAS_NAMESPACE | grep -e "[a-z]"
     cmds:
       - for: {var: hardwares}
         cmd: incus init {{.ITEM.hostname}} --empty --vm --no-profiles -c limits.cpu=2 -c limits.memory=2GiB -d root,size=15GiB
@@ -48,8 +52,8 @@ tasks:
       - for: {var: hardwares}
         cmd: incus start {{.ITEM.hostname}}
       - mkdir -p dist
-      - jinja2 --strict -D metadata_ipaddr=$TINKERBELL_IP capi-vm.yaml.j2 -o dist/capi-vm.yaml
-      - jinja2 --strict -D dns_ipaddr=$DNS_IP hardwares.yaml.j2 -o dist/hardwares.yaml
+      - jinja2 --strict -D metadata_ipaddr=$TINKERBELL_IP -D namespace=$BMAAS_NAMESPACE capi-vm.yaml.j2 -o dist/capi-vm.yaml
+      - jinja2 --strict -D dns_ipaddr=$DNS_IP -D namespace=$BMAAS_NAMESPACE hardwares.yaml.j2 -o dist/hardwares.yaml
       - kubectl apply -f dist/hardwares.yaml -f dist/capi-vm.yaml
   #############################################################################
   #  Create ubuntu image

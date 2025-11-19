@@ -2,7 +2,7 @@ apiVersion: controlplane.cluster.x-k8s.io/v1beta1
 kind: KubeadmControlPlane
 metadata:
   name: capi-vm-control-plane
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
 spec:
   kubeadmConfigSpec:
     clusterConfiguration: {}
@@ -29,7 +29,7 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: TinkerbellMachineTemplate
 metadata:
   name: capi-vm-control-plane
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
 spec:
   template:
     spec:
@@ -111,7 +111,7 @@ apiVersion: cluster.x-k8s.io/v1beta1
 kind: Cluster
 metadata:
   name: capi-vm
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
 spec:
   clusterNetwork:
     pods:
@@ -136,7 +136,7 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: TinkerbellCluster
 metadata:
   name: capi-vm
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
 spec:
   imageLookupBaseRegistry: http://registry.ring0:8080/assets
 ---
@@ -147,7 +147,7 @@ metadata:
     cluster.x-k8s.io/cluster-name: capi-vm
     pool: worker-a
   name: capi-vm-worker-a
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
 spec:
   clusterName: capi-vm
   replicas: 1
@@ -177,7 +177,7 @@ apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
 kind: TinkerbellMachineTemplate
 metadata:
   name: capi-vm-worker-a
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
 spec:
   template:
     spec:
@@ -259,7 +259,7 @@ apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
 kind: KubeadmConfigTemplate
 metadata:
   name: capi-vm-worker-a
-  namespace: tinkerbell-system
+  namespace: {{ namespace }}
 spec:
   template:
     spec:
