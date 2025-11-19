@@ -129,9 +129,8 @@ systemd:
         ExecStart=/usr/bin/kubeadm init --config /run/kubeadm/kubeadm.yaml
         ExecStartPost=/usr/bin/sh -c "echo success > /run/cluster-api/bootstrap-success.complete"
         ExecStartPost=/usr/bin/sh -c "docker images | grep -v REPOSITORY | awk '{print $3}' | xargs docker rmi --force"
-        ExecStartPost=/usr/bin/sh -c "echo success > /run/cluster-api/bootstrap-success.complete"
-        ExecStartPost=/usr/bin/systemctl disable docker.service docker.socket
-        ExecStartPost=/usr/bin/systemctl stop docker.service docker.socket
+        ExecStartPost=/usr/bin/systemctl disable docker.service docker.socket kubeadm-join.service cloud-init.service
+        ExecStartPost=/usr/bin/systemctl stop docker.service docker.socket kubeadm-join.service
         [Install]
         WantedBy=multi-user.target
     - name: kubeadm-join.service
@@ -148,8 +147,8 @@ systemd:
         ExecStart=/usr/bin/kubeadm join --config /run/kubeadm/kubeadm-join-config.yaml
         ExecStartPost=/usr/bin/sh -c "docker images | grep -v REPOSITORY | awk '{print $3}' | xargs docker rmi --force"
         ExecStartPost=/usr/bin/sh -c "echo success > /run/cluster-api/bootstrap-success.complete"
-        ExecStartPost=/usr/bin/systemctl disable docker.service docker.socket
-        ExecStartPost=/usr/bin/systemctl stop docker.service docker.socket
+        ExecStartPost=/usr/bin/systemctl disable docker.service docker.socket kubeadm.service cloud-init.service
+        ExecStartPost=/usr/bin/systemctl stop docker.service docker.socket kubeadm.service
         [Install]
         WantedBy=multi-user.target
     - name: containerd.service
