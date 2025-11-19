@@ -1,0 +1,80 @@
+version: 3
+vars:
+  hardwares:
+    - hostname: node-1
+      mac: "10:66:6a:07:8d:01"
+    - hostname: node-2
+      mac: "10:66:6a:07:8d:02"
+tasks:
+  #############################################################################
+  #  Deploy Tinkerbell Cluster API
+  # 
+  init-clusterapi:
+    desc: Deploy Tinkerbell Cluster API
+    vars:
+      tinkerbell_ip:
+        sh: kubectl get svc -n tinkerbell-system tinkerbell -o yaml | yq '.status.loadBalancer.ingress[0].ip'
+    cmds:
+      - |
+        cat > ~/.cluster-api/clusterctl.yaml <<EOF
+        providers:
+          - name: "tinkerbell"
+            url: "https://github.com/tinkerbell/cluster-api-provider-tinkerbell/releases/v0.6.7/infrastructure-components.yaml"
+            type: "InfrastructureProvider"
+        EOF
+      - TINKERBELL_IP={{.tinkerbell_ip}} clusterctl init --infrastructure tinkerbell
+  #############################################################################
+  # Delete virtual instances and cluster
+  # 
+  delete-nodes:
+    desc: Delete virtual instances and cluster
+    prompt: Are you sure? That is going to delete the capi resources and the nodes.
+    cmds:
+      - for: {var: hardwares}
+        cmd: incus delete --force {{.ITEM.hostname}}
+      - kubectl delete -f dist/hardwares.yaml -f dist/capi-vm.yaml
+  #############################################################################
+  # Deploy virtual instances
+  # 
+  deploy-nodes:
+    desc: Create Hardware objects and start virtual instances
+    cmds:
+      - for: {var: hardwares}
+        cmd: incus init {{.ITEM.hostname}} --empty --vm --no-profiles -c limits.cpu=2 -c limits.memory=2GiB -d root,size=15GiB
+      - for: {var: hardwares}
+        cmd: incus config set {{.ITEM.hostname}} security.secureboot=false
+      - for: {var: hardwares}
+        cmd: incus config device add {{.ITEM.hostname}} eth0 nic network=services0 hwaddr="{{.ITEM.mac}}"
+      - for: {var: hardwares}
+        cmd: incus start {{.ITEM.hostname}}
+      - mkdir -p dist
+      - jinja2 --strict -D metadata_ipaddr=$TINKERBELL_IP capi-vm.yaml.j2 -o dist/capi-vm.yaml
+      - jinja2 --strict -D dns_ipaddr=$DNS_IP hardwares.yaml.j2 -o dist/hardwares.yaml
+      - kubectl apply -f dist/hardwares.yaml -f dist/capi-vm.yaml
+  #############################################################################
+  #  Create ubuntu image
+  # 
+  build-ubuntu:
+    desc: Build Ubuntu using image builder
+    vars:
+      download_commands: curl -L https://github.com/kubernetes-sigs/image-builder/tarball/main -o /root/image-builder.tgz ; mkdir -p /root/image-builder ; tar xzf /root/image-builder.tgz --strip-components 1 -C /root/image-builder
+      build_commands: apt install -y ansible make qemu-system unzip && make -C /root/image-builder/images/capi build-raw-ubuntu-2404-efi
+    cmds:
+      - if ! incus config device list forge | grep -q kvm ; then incus config device add forge kvm unix-char path=/dev/kvm gid=104; fi
+      - incus exec forge -- bash -c "if [ ! -e /root/image-builder/images/capi ] ; then {{.download_commands}} ; fi"
+      - incus exec forge -- bash -c "find /root/image-builder/images/capi/output/ -name 'ubuntu*' | xargs rm -rf"
+      - incus exec forge -- bash -c "{{.build_commands}}"
+  #############################################################################
+  #  Copy ubuntu image to the bootstrap servivce
+  # 
+  transfert-ubuntu-image:
+    desc: Prepare the Ubuntu Linux image from image builder
+    vars:
+      ubuntu_latest_output_path:
+        sh: incus exec forge -- find /root/image-builder/images/capi/output -type f | grep ubuntu | tail -n1
+      ubuntu_latest_output_name:
+        sh: echo {{.ubuntu_latest_output_path}} | xargs basename
+    cmds:
+      - ssh headnode-0 incus file pull forge{{.ubuntu_latest_output_path}} /tmp/{{.ubuntu_latest_output_name}}
+      - ssh headnode-0 incus file push /tmp/{{.ubuntu_latest_output_name}} bootstrap/var/lib/matchbox/assets/ubuntu/{{.ubuntu_latest_output_name}}
+      - ssh headnode-0 rm -f /tmp/{{.ubuntu_latest_output_name}}

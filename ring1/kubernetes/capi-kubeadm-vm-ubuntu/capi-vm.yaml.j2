@@ -1,0 +1,269 @@
+apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+kind: KubeadmControlPlane
+metadata:
+  name: capi-vm-control-plane
+  namespace: tinkerbell-system
+spec:
+  kubeadmConfigSpec:
+    clusterConfiguration: {}
+    initConfiguration:
+      nodeRegistration:
+        kubeletExtraArgs:
+          provider-id: PROVIDER_ID
+    joinConfiguration:
+      nodeRegistration:
+        ignorePreflightErrors:
+        - DirAvailable--etc-kubernetes-manifests
+        kubeletExtraArgs:
+          provider-id: PROVIDER_ID
+    preKubeadmCommands: []
+  machineTemplate:
+    infrastructureRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+      kind: TinkerbellMachineTemplate
+      name: capi-vm-control-plane
+  replicas: 1
+  version: v1.32.4
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: TinkerbellMachineTemplate
+metadata:
+  name: capi-vm-control-plane
+  namespace: tinkerbell-system
+spec:
+  template:
+    spec:
+      hardwareAffinity:
+        required:  # 'required' entries are OR'd
+        - labelSelector:
+            matchLabels:
+              kubernetes: "true"
+      templateOverride: |-
+        version: "0.1"
+        name: airgap-template
+        global_timeout: 6000
+        tasks:
+          - name: "airgap-install"
+            worker: "{{ '{{' }}.device_1}}"
+            volumes:
+              - /dev:/dev
+              - /dev/console:/dev/console
+              - /lib/firmware:/lib/firmware:ro
+            actions:
+              - name: "stream image"
+                image: registry.ring0:5000/tinkerbell/actions/image2disk
+                timeout: 600
+                environment:
+                  IMG_URL: http://registry.ring0:8080/assets/ubuntu/ubuntu-2404-efi-kube-v1.32.4.gz
+                  DEST_DISK: /dev/sda
+                  COMPRESSED: true
+              - name: "add tink cloud-init config"
+                image: registry.ring0:5000/tinkerbell/actions/writefile
+                timeout: 90
+                environment:
+                  DEST_DISK: /dev/sda2
+                  FS_TYPE: ext4
+                  DEST_PATH: /etc/cloud/cloud.cfg.d/10_tinkerbell.cfg
+                  UID: 0
+                  GID: 0
+                  MODE: 0600
+                  DIRMODE: 0700
+                  CONTENTS: |
+                    datasource:
+                      Ec2:
+                        metadata_urls: ["http://192.168.3.5:7172"]
+                        strict_id: false
+                    system_info:
+                      default_user:
+                        name: tink
+                        groups: [wheel, adm]
+                        sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+                        shell: /bin/bash
+                    manage_etc_hosts: localhost
+                    warnings:
+                      dsid_missing_source: off
+              - name: "add tink cloud-init ds-config"
+                image: registry.ring0:5000/tinkerbell/actions/writefile
+                timeout: 90
+                environment:
+                  DEST_DISK: /dev/sda2
+                  FS_TYPE: ext4
+                  DEST_PATH: /etc/cloud/ds-identify.cfg
+                  UID: 0
+                  GID: 0
+                  MODE: 0600
+                  DIRMODE: 0700
+                  CONTENTS: |
+                    datasource: Ec2
+              - name: "reboot"
+                image: registry.ring0:5000/jacobweinstock/waitdaemon
+                timeout: 90
+                pid: host
+                command:
+                - reboot
+                environment:
+                  IMAGE: registry.ring0:5000/library/alpine:latest
+                  WAIT_SECONDS: 10
+                volumes:
+                - /var/run/docker.sock:/var/run/docker.sock
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: capi-vm
+  namespace: tinkerbell-system
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 192.168.0.0/16
+    services:
+      cidrBlocks:
+      - 172.26.0.0/16
+  controlPlaneEndpoint:
+    host: 192.168.3.150
+    port: 6443
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KubeadmControlPlane
+    name: capi-vm-control-plane
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: TinkerbellCluster
+    name: capi-vm
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: TinkerbellCluster
+metadata:
+  name: capi-vm
+  namespace: tinkerbell-system
+spec:
+  imageLookupBaseRegistry: http://registry.ring0:8080/assets
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: capi-vm
+    pool: worker-a
+  name: capi-vm-worker-a
+  namespace: tinkerbell-system
+spec:
+  clusterName: capi-vm
+  replicas: 1
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: capi-vm
+      pool: worker-a
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: capi-vm
+        pool: worker-a
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: capi-vm-worker-a
+      clusterName: capi-vm
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: TinkerbellMachineTemplate
+        name: capi-vm-worker-a
+      version: v1.32.4
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: TinkerbellMachineTemplate
+metadata:
+  name: capi-vm-worker-a
+  namespace: tinkerbell-system
+spec:
+  template:
+    spec:
+      hardwareAffinity:
+        required:  # 'required' entries are OR'd
+        - labelSelector:
+            matchLabels:
+              kubernetes: "true"
+      templateOverride: |-
+        version: "0.1"
+        name: airgap-template
+        global_timeout: 6000
+        tasks:
+          - name: "airgap-install"
+            worker: "{{ '{{' }}.device_1}}"
+            volumes:
+              - /dev:/dev
+              - /dev/console:/dev/console
+              - /lib/firmware:/lib/firmware:ro
+            actions:
+              - name: "stream image"
+                image: registry.ring0:5000/tinkerbell/actions/image2disk
+                timeout: 600
+                environment:
+                  IMG_URL: http://registry.ring0:8080/assets/ubuntu/ubuntu-2404-efi-kube-v1.32.4.gz
+                  DEST_DISK: /dev/sda
+                  COMPRESSED: true
+              - name: "add tink cloud-init config"
+                image: registry.ring0:5000/tinkerbell/actions/writefile
+                timeout: 90
+                environment:
+                  DEST_DISK: /dev/sda2
+                  FS_TYPE: ext4
+                  DEST_PATH: /etc/cloud/cloud.cfg.d/10_tinkerbell.cfg
+                  UID: 0
+                  GID: 0
+                  MODE: 0600
+                  DIRMODE: 0700
+                  CONTENTS: |
+                    datasource:
+                      Ec2:
+                        metadata_urls: ["http://{{ metadata_ipaddr }}:7172"]
+                        strict_id: false
+                    system_info:
+                      default_user:
+                        name: tink
+                        groups: [wheel, adm]
+                        sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+                        shell: /bin/bash
+                    manage_etc_hosts: localhost
+                    warnings:
+                      dsid_missing_source: off
+              - name: "add tink cloud-init ds-config"
+                image: registry.ring0:5000/tinkerbell/actions/writefile
+                timeout: 90
+                environment:
+                  DEST_DISK: /dev/sda2
+                  FS_TYPE: ext4
+                  DEST_PATH: /etc/cloud/ds-identify.cfg
+                  UID: 0
+                  GID: 0
+                  MODE: 0600
+                  DIRMODE: 0700
+                  CONTENTS: |
+                    datasource: Ec2
+              - name: "reboot"
+                image: registry.ring0:5000/jacobweinstock/waitdaemon:0.2.1
+                timeout: 90
+                pid: host
+                command:
+                - reboot
+                environment:
+                  IMAGE: registry.ring0:5000/library/alpine:latest
+                  WAIT_SECONDS: 10
+                volumes:
+                - /var/run/docker.sock:/var/run/docker.sock
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: capi-vm-worker-a
+  namespace: tinkerbell-system
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            provider-id: PROVIDER_ID
