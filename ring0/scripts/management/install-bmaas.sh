@@ -48,7 +48,7 @@ fi
 function build_hook() {
 	print_milestone "Building tinkerbell hookos"
 
-	cat <<EOF | incus exec forge -- bash
+	cat <<EOF | incus exec -t forge -- bash
     export DOCKER_ARCH=amd64
 
     cd /root
@@ -69,6 +69,7 @@ function build_hook() {
 
     cd out
     sha512sum hook_x86_64.tar.gz hook_latest-lts-x86_64.tar.gz > checksum.txt
+	exit
 EOF
 
 	print_check "Checking artifacts"

@@ -1,6 +1,8 @@
 oci:
-  - ghcr.io/jacobweinstock/waitdaemon:latest
+  - ghcr.io/jacobweinstock/waitdaemon:0.2.1
   - quay.io/tinkerbell/actions/image2disk:latest
+  - quay.io/tinkerbell/actions/oci2disk:latest
   - quay.io/tinkerbell/actions/kexec:latest
   - quay.io/tinkerbell/actions/writefile:latest
   - ghcr.io/tinkerbell/tink-agent:v0.19.1
+  - docker.io/library/alpine:latest

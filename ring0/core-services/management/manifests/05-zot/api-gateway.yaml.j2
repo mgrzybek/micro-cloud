@@ -132,29 +132,49 @@ data:
   zot.conf: |
     resolver {{dns_resolver}} valid=5s;
     server {
-        # This is the classic and expected registry's port.
-        listen 5000 ssl;
-        server_name registry.ring0;
+      # This is the classic and expected registry's port.
+      listen 5000 ssl;
+      server_name registry.ring0;
 
-        ssl_certificate /etc/nginx/ssl/tls.crt;
-        ssl_certificate_key /etc/nginx/ssl/tls.key;
+      ssl_certificate /etc/nginx/ssl/tls.crt;
+      ssl_certificate_key /etc/nginx/ssl/tls.key;
 
-        # Standard TLS options.
-        ssl_protocols TLSv1.2 TLSv1.3;
-        ssl_ciphers HIGH:!aNULL:!MD5;
-        ssl_prefer_server_ciphers on;
+      # Standard TLS options.
+      ssl_protocols TLSv1.2 TLSv1.3;
+      ssl_ciphers HIGH:!aNULL:!MD5;
+      ssl_prefer_server_ciphers on;
 
-        location / {
-            # DNS request is made on call, not at pod startup
-            set $zot_target "zot.{{namespace}}.svc.cluster.local";
-            proxy_pass http://$zot_target:5000;
+      location / {
+        # DNS request is made on call, not at pod startup
+        set $zot_target "zot.{{namespace}}.svc.cluster.local";
+        proxy_pass http://$zot_target:5000;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+      }
+    }
+    server {
+      listen 8080;
+
+      location / {
+        # DNS request is made on call, not at pod startup
+        set $bootstrap_target "bootstrap";
+        proxy_pass http://$bootstrap_target:8080;
             
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_redirect off;
-        }
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+      }
+
+      location /assets/talos {
+        deny all;
+        return 403;
+      }
     }
 ---
 apiVersion: apps/v1
@@ -209,6 +229,10 @@ metadata:
 spec:
   type: LoadBalancer
   ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
     - name: https
       port: 5000
       targetPort: 5000

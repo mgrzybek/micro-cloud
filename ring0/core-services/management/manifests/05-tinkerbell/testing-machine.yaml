@@ -29,7 +29,29 @@ metadata:
   name: test-template
   namespace: tinkerbell-system
 spec:
-  data: "name: test-template\nversion: \"0.1\"\nglobal_timeout: 600\ntasks:\n  - name: \"os installation\"\n    worker: \"10:66:6a:07:8d:0d\"\n    volumes:\n      - /dev:/dev\n      - /dev/console:/dev/console\n    actions:\n      - name: \"echome\"\n        image: registry.ring0:5000/jacobweinstock/waitdaemon:latest\n        #image: ghcr.io/jacobweinstock/waitdaemon:latest \n        timeout: 600\n        pid: host\n        command:\n          - echo \"Hello, this is {{ .machine_mac }}\"\n          - echo \"Ending script here\"\n        environment:\n          IMAGE: alpine\n          WAIT_SECONDS: 60\n        volumes:\n          - /var/run/docker.sock:/var/run/docker.sock\n"
+  data: |
+    name: test-template
+    version: "0.1"
+    global_timeout: 600
+    tasks:
+    - name: "os installation"
+      worker: "10:66:6a:07:8d:0d"
+      volumes:
+      - /dev:/dev
+      - /dev/console:/dev/console
+      actions:
+      - name: "echome"
+        image: registry.ring0:5000/jacobweinstock/waitdaemon:0.2.1
+        timeout: 600
+        pid: host
+        command:
+        - echo "Hello, this is {{ .machine_mac }}"
+        - echo "Ending script here"
+        environment:
+          IMAGE: alpine
+          WAIT_SECONDS: 60
+          volumes:
+          - /var/run/docker.sock:/var/run/docker.sock
 ---
 apiVersion: tinkerbell.org/v1alpha1
 kind: Workflow
