@@ -1,0 +1,62 @@
+---
+apiVersion: tinkerbell.org/v1alpha1
+kind: Hardware
+metadata:
+  name: node-1
+  namespace: {{ namespace }}
+  labels: # Labels are optional, and can be used for machine selection later
+    kubernetes: "true"
+spec:
+  disks:
+    - device: /dev/sda
+  metadata:
+    instance:
+      hostname: "node-1"
+      id: 10:66:6a:07:8d:01
+  interfaces:
+    - dhcp:
+        arch: x86_64
+        hostname: node-1.ring0
+        ip:
+          address: 192.168.3.150
+          gateway: 192.168.3.1
+          netmask: 255.255.255.0
+        lease_time: 86400
+        mac: 10:66:6a:07:8d:01
+        name_servers:
+          - {{ dns_ipaddr }}
+        uefi: true
+      netboot:
+        allowPXE: true
+        allowWorkflow: true
+---
+apiVersion: tinkerbell.org/v1alpha1
+kind: Hardware
+metadata:
+  name: node-2
+  namespace: {{ namespace }}
+  labels: # Labels are optional, and can be used for machine selection later
+    kubernetes: "true"
+spec:
+  disks:
+    - device: /dev/sda
+  metadata:
+    instance:
+      hostname: "node-2"
+      id: 10:66:6a:07:8d:02
+  interfaces:
+    - dhcp:
+        arch: x86_64
+        hostname: node-2.ring0
+        ip:
+          address: 192.168.3.151
+          gateway: 192.168.3.1
+          netmask: 255.255.255.0
+        lease_time: 86400
+        mac: 10:66:6a:07:8d:02
+        name_servers:
+          - {{ dns_ipaddr }}
+        uefi: true
+      netboot:
+        allowPXE: true
+        allowWorkflow: true
