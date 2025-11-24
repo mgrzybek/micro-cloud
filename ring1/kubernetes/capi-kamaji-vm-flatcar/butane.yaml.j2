@@ -1,0 +1,163 @@
+variant: flatcar
+version: 1.1.0
+
+kernel_arguments:
+  should_exist:
+    - flatcar.autologin
+
+storage:
+  directories:
+    - path: /etc/kubernetes/manifests
+  links:
+    - target: /opt/extensions/kubernetes/kubernetes-v1.33.2-x86-64.raw
+      path: /etc/extensions/kubernetes.raw
+      hard: false
+  files:
+    # CA
+    - path: /etc/ssl/certs/microcloud.pem
+      contents:
+        local: bundle.crt
+    # kubernetes
+    - path: /etc/sysupdate.kubernetes.d/kubernetes-v1.33.conf
+      contents:
+        source: http://registry.ring0:8080/assets/flatcar/extensions/kubernetes-v1.33.conf
+    - path: /etc/sysupdate.d/noop.conf
+      contents:
+        source: http://registry.ring0:8080/assets/flatcar/extensions/noop.conf
+    - path: /opt/extensions/kubernetes/kubernetes-v1.33.2-x86-64.raw
+      contents:
+        source: http://registry.ring0:8080/assets/flatcar/extensions/kubernetes-v1.33.2-x86-64.raw
+    - path: /etc/containerd/config.toml
+      contents:
+        inline: |
+          version = 2
+
+          # persistent data location
+          root = "/var/lib/containerd"
+          # runtime state information
+          state = "/run/containerd"
+          # set containerd as a subreaper on linux when it is not running as PID 1
+          subreaper = true
+          # set containerd's OOM score
+          oom_score = -999
+          disabled_plugins = []
+
+          # grpc configuration
+          [grpc]
+          address = "/run/containerd/containerd.sock"
+          # socket uid
+          uid = 0
+          # socket gid
+          gid = 0
+
+          [plugins."io.containerd.runtime.v1.linux"]
+          # shim binary name/path
+          shim = "containerd-shim"
+          # runtime binary name/path
+          runtime = "runc"
+          # do not use a shim when starting containers, saves on memory but
+          # live restore is not supported
+          no_shim = false
+
+          [plugins."io.containerd.grpc.v1.cri"]
+          # enable SELinux labeling
+          enable_selinux = true
+          # airgap registry
+          sandbox_image = "registry.ring0:5000/registry.k8s.io/pause:3.10"
+
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+          # setting runc.options unsets parent settings
+          runtime_type = "io.containerd.runc.v2"
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+          SystemdCgroup = true
+    # cloud-init
+    - path: /etc/cloud/cloud.cfg.d/10_tinkerbell.cfg
+      contents:
+        inline: |
+          datasource:
+            Ec2:
+              metadata_urls: ["http://{{ metadata_ipaddr }}:7172"]
+              strict_id: false
+          system_info:
+            default_user:
+              name: tink
+              groups: [wheel, adm]
+              sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+              shell: /bin/bash
+          manage_etc_hosts: localhost
+          network:
+            config: disabled
+          warnings:
+            dsid_missing_source: off
+    - path: /etc/cloud/ds-identify.cfg
+      contents:
+        inline: |
+          datasource: Ec2
+systemd:
+  units:
+    ###########################################################################
+    # Utilities
+    - enabled: true
+      name: sshd.service
+    - name: systemd-sysupdate.timer
+      enabled: true
+    - name: locksmithd.service
+      # NOTE: To coordinate the node reboot in this context, we recommend to use Kured.
+      mask: true
+    ###########################################################################
+    # Kubernetes
+    - name: systemd-sysupdate.service
+      dropins:
+        - name: kubernetes.conf
+          contents: |
+            [Service]
+            ExecStartPre=/usr/bin/sh -c "readlink --canonicalize /etc/extensions/kubernetes.raw > /tmp/kubernetes"
+            ExecStartPre=/usr/lib/systemd/systemd-sysupdate -C kubernetes update
+            ExecStartPost=/usr/bin/sh -c "readlink --canonicalize /etc/extensions/kubernetes.raw > /tmp/kubernetes-new"
+            ExecStartPost=/usr/bin/sh -c "if ! cmp --silent /tmp/kubernetes /tmp/kubernetes-new; then touch /run/reboot-required; fi"
+    - name: kubelet.service
+      enabled: true
+    - name: kubeadm-join.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Kubeadm join service
+        Requires=containerd.service
+        After=containerd.service
+        After=network-online.target
+        After=cloud-init.service
+        ConditionPathExists=/run/kubeadm/kubeadm-join-config.yaml
+        [Service]
+        ExecStart=/usr/bin/kubeadm join --config /run/kubeadm/kubeadm-join-config.yaml
+        ExecStartPost=/usr/bin/sh -c "docker images | grep -v REPOSITORY | awk '{print $3}' | xargs docker rmi --force"
+        ExecStartPost=/usr/bin/sh -c "echo success > /run/cluster-api/bootstrap-success.complete"
+        ExecStartPost=/usr/bin/systemctl disable docker.service docker.socket cloud-init.service
+        ExecStartPost=/usr/bin/systemctl stop docker.service docker.socket
+        [Install]
+        WantedBy=multi-user.target
+    - name: containerd.service
+      dropins:
+        - name: airgap.conf
+          contents: |
+            [Service]
+            Environment=CONTAINERD_CONFIG=/etc/containerd/config.toml
+    ###########################################################################
+    # Cloud-init
+    - name: cloud-init.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Cloud-init startup service using docker
+        Requires=containerd.service
+        After=containerd.service
+        After=network-online.target
+        Before=sshd-keygen.service
+        Before=sshd.service
+        [Service]
+        Type=oneshot
+        ExecStartPre=/usr/bin/update-ca-certificates
+        ExecStart=docker run --rm -v /etc:/etc -v /run:/run -v /var:/var registry.ring0:5000/cloud-init cloud-init init
+        ExecStart=docker run --rm -v /etc:/etc -v /run:/run -v /var:/var registry.ring0:5000/cloud-init cloud-init single --name write_files
+        StandardOutput=journal+console
+        [Install]
+        WantedBy=multi-user.target

@@ -1,0 +1,145 @@
+version: 3
+vars:
+  hardwares:
+    - hostname: node-1
+      mac: "10:66:6a:07:8d:01"
+      #- hostname: node-2
+      #  mac: "10:66:6a:07:8d:02"
+  butane: butane.yaml
+  ignition: ignition.json
+  skopeo_opts: --dest-tls-verify=false --override-arch=amd64 --override-os=linux
+  ts_suffix:
+    sh: tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}'
+  cp_host: "192.168.3.8"
+tasks:
+  #############################################################################
+  # Downloading and building artifacts
+  # 
+  populate-registry:
+    desc: Add some OCI images into the registry
+    cmds:
+      #- task --dir ../../common create-flatcar-install-oci
+      #- task --dir ../../common push-flatcar-install-oci
+      #- task --dir ../../common create-cloud-init-oci
+      #- task --dir ../../common push-cloud-init-oci
+      - |
+        for image in $(yq '.oci[] | .source + "," + .destination' registry.yaml); do
+          new_name=$(echo $image | awk -F, '{print $2}' | awk '{gsub("^[a-z.]+/","");print}')
+          source="docker://$(echo $image | awk -F, '{print $1'})"
+          destination="docker://registry.{{.ts_suffix}}:443/$new_name"
+          skopeo copy --dest-tls-verify=false --override-arch=amd64 --override-os=linux $source $destination
+        done
+  populate-extensions:
+    desc: Add Kubernetes extension files to the assets service
+    vars:
+      files:
+        - https://extensions.flatcar.org/extensions/kubernetes/kubernetes-v1.33.conf
+        - https://extensions.flatcar.org/extensions/noop.conf
+        - https://extensions.flatcar.org/extensions/kubernetes-v1.33.2-x86-64.raw
+    cmds:
+      - incus exec bootstrap -- mkdir -p /var/lib/matchbox/assets/flatcar/extensions
+      - for: {var: files}
+        cmd: incus exec --cwd /var/lib/matchbox/assets/flatcar/extensions bootstrap -- wget -nc {{.ITEM}}
+  #############################################################################
+  # Deploy Tinkerbell Cluster API
+  # 
+  init-clusterapi:
+    desc: Deploy Tinkerbell Cluster API
+    preconditions:
+      - echo $BMAAS_NAMESPACE | grep -qe "[a-z]"
+    vars:
+      helm_opts: upgrade --install --namespace kamaji-system --timeout=600s
+      datastore: microcloud
+      kamaji_version: edge-25.11.4
+    cmds:
+      - helm {{.helm_opts }} --create-namespace kamaji-etcd clastix/kamaji-etcd --set replicas=1 --set datastore.name={{.datastore}}
+      - helm {{.helm_opts }} kamaji-crds clastix/kamaji-crds
+      - helm {{.helm_opts }} kamaji clastix/kamaji --set image.tag={{.kamaji_version}} --set etcd.deploy=false --set defaultDatastoreName={{.datastore}}
+      # TODO: patch: "command: /kamaji" ==> null
+      - |
+        cat > ~/.cluster-api/clusterctl.yaml <<EOF
+        providers:
+          - name: "tinkerbell"
+            url: "https://github.com/tinkerbell/cluster-api-provider-tinkerbell/releases/v0.6.7/infrastructure-components.yaml"
+            type: "InfrastructureProvider"
+        EOF
+      - TINKERBELL_IP=$TINKERBELL_IP clusterctl init --infrastructure tinkerbell --control-plane kamaji
+  #############################################################################
+  # Delete virtual instances and cluster
+  # 
+  delete-nodes:
+    desc: Delete virtual instances and cluster
+    prompt: Are you sure? That is going to delete the capi resources and the nodes.
+    preconditions:
+      - echo $BMAAS_NAMESPACE | grep -qe "[a-z]"
+    cmds:
+      - for: {var: hardwares}
+        cmd: incus delete --force {{.ITEM.hostname}}
+      #- kubectl get KubeAdmConfig -n $BMAAS_NAMESPACE | awk '/capi-vm-control-plane/ {print $1}' | xargs kubectl delete --wait -n $BMAAS_NAMESPACE KubeAdmConfig
+      - kubectl delete --wait -f dist/hardwares.yaml -f dist/capi-vm.yaml
+  #############################################################################
+  # Deploy virtual instances
+  # 
+  deploy-nodes:
+    desc: Create Hardware objects and start virtual instances
+    preconditions:
+      - echo $TINKERBELL_IP | fgrep  .
+      - echo $DNS_IP | fgrep  .
+      - echo $BMAAS_NAMESPACE | grep -qe "[a-z]"
+    cmds:
+      - for: {var: hardwares}
+        cmd: incus init {{.ITEM.hostname}} --empty --vm --no-profiles -c limits.cpu=2 -c limits.memory=2GiB -d root,size=15GiB
+      - for: {var: hardwares}
+        cmd: incus config set {{.ITEM.hostname}} security.secureboot=false
+      - for: {var: hardwares}
+        cmd: incus config device add {{.ITEM.hostname}} eth0 nic network=services0 hwaddr="{{.ITEM.mac}}"
+      - for: {var: hardwares}
+        cmd: incus start {{.ITEM.hostname}}
+      - mkdir -p dist
+      - jinja2 --strict -D dns_ipaddr=$DNS_IP -D namespace=$BMAAS_NAMESPACE hardwares.yaml.j2 -o dist/hardwares.yaml
+      - kubectl apply -f dist/hardwares.yaml
+  #############################################################################
+  # Flatcar configuration
+  create-ignition:
+    desc: Create dedicated ignition file for CAPI and CAPT
+    preconditions:
+      - echo $TINKERBELL_IP | fgrep  .
+    cmds:
+      - mkdir -p dist
+      - jinja2 --strict -D metadata_ipaddr=$TINKERBELL_IP {{.butane}}.j2 -o dist/{{.butane}}
+      - butane -d ../../../ring0/dist --pretty --strict dist/{{.butane}} > dist/{{.ignition}}
+    sources:
+      - "{{.butane}}.j2"
+    generates:
+      - dist/{{.ignition}}
+  #############################################################################
+  # Create tinkerbell and cluster manifests
+  create-capi-vm:
+    desc: Create tinkerbell template and workflow
+    preconditions:
+      - echo $BMAAS_NAMESPACE | grep -qe "[a-z]"
+      - test -f ../../../ring0/dist/talosconfig
+    vars:
+      announcement_interface:
+        sh: talosctl --talosconfig ../../../ring0/dist/talosconfig -n management -e management get addresses | grep $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}'
+      ignition_base64:
+        sh: base64 -i dist/{{.ignition}}
+      jinja_opts: --strict
+      jinja_variables: -D ignition_base64={{.ignition_base64}} -D namespace=$BMAAS_NAMESPACE -D announcement_interface={{.announcement_interface}} -D cp_host={{.cp_host}} -D ts_suffix={{.ts_suffix}}
+    cmds:
+      # Cluster deployment
+      - mkdir -p dist
+      - jinja2 {{.jinja_opts}} {{.jinja_variables}} -o dist/capi-vm.yaml capi-vm.yaml.j2
+      - kubectl apply -n $BMAAS_NAMESPACE --wait -f dist/capi-vm.yaml
+      - kubectl wait --for=create secret/capi-vm-kubeconfig -n $BMAAS_NAMESPACE --timeout=300s
+      - kubectl get secret -n $BMAAS_NAMESPACE capi-vm-kubeconfig -o yaml  | yq '.data.value' | base64 -d | sed 's/{{.cp_host}}/capi-vm/' > dist/kubeconfig
+      # CNI deployment
+      - jinja2 {{.jinja_opts}} {{.jinja_variables}} -o dist/cilium.yaml cilium.yaml.j2
+      - cilium install --kubeconfig dist/kubeconfig --values dist/cilium.yaml
+      - cilium status --wait --kubeconfig dist/kubeconfig
+    generates:
+      - dist/capi-vm.yaml
+      - dist/kubeconfig
+    sources:
+      - capi-vm.yaml.j2
+      - dist/{{.ignition}}

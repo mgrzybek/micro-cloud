@@ -1,0 +1,111 @@
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+
+gatewayAPI:
+  enabled: true
+  hostNetwork:
+    enabled: false
+
+envoy:
+  image:
+    repository: "registry.ring0:5000/cilium/cilium-envoy"
+    tag: "v1.35.3-1763805254-768d5a2892ffd7012014681e8a7547124e57fc53"
+    useDigest: false
+  securityContext:
+    capabilities:
+      keepCapNetBindService: true
+
+securityContext:
+  capabilities:
+    ciliumAgent: ["CHOWN", "KILL", "NET_ADMIN", "NET_RAW", "IPC_LOCK", "SYS_ADMIN", "SYS_RESOURCE", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
+    cleanCiliumState: ["NET_ADMIN", "SYS_ADMIN", "SYS_RESOURCE"]
+
+ipam:
+  mode: kubernetes
+
+hubble:
+  relay:
+    enabled: false
+    image:
+      repository: "registry.ring0:5000/cilium/hubble-relay-ci"
+      tag: "latest"
+      useDigest: false
+  ui:
+    enabled: false
+    standalone:
+      repository: "registry.ring0:5000/cilium/hubble-ui-backend"
+      tag: "v0.13.3"
+      useDigest: false
+    frontend:
+      image:
+        repository: "registry.ring0:5000/cilium/hubble-ui"
+        tag: "v0.13.3"
+        useDigest: false
+
+k8sServiceHost: localhost
+kubeProxyReplacement: true
+
+externalIPs:
+  enabled: true
+
+l7Proxy: true
+
+k8sClientRateLimit:
+  qps: 5
+  burst: 10
+
+k8s:
+  apiServerURLs: "https://192.168.3.8:6443"
+
+###############################################################################
+
+image:
+  repository: "registry.ring0:5000/cilium/cilium-ci"
+  tag: "latest"
+  useDigest: false
+certgen:
+  image:
+    repository: "registry.ring0:5000/cilium/certgen"
+    tag: "v0.3.1"
+    useDigest: false
+
+operator:
+  image:
+    repository: "registry.ring0:5000/cilium/operator"
+    tag: "v1.18.1"
+    useDigest: false
+nodeinit:
+  image:
+    repository: "registry.ring0:5000/cilium/startup-script"
+    tag: "1763560095-8f36c34"
+    useDigest: false
+preflight:
+  image:
+    repository: "registry.ring0:5000/cilium/cilium-ci"
+    tag: "latest"
+    useDigest: false
+  envoy:
+    image:
+      repository: "registry.ring0:5000/cilium/cilium-envoy"
+      tag: "v1.35.3-1763805254-768d5a2892ffd7012014681e8a7547124e57fc53"
+      useDigest: false
+clustermesh:
+  apiserver:
+      repository: "registry.ring0:5000/cilium/clustermesh-apiserver-ci"
+      tag: "latest"
+      useDigest: false
+authentication:
+  mutual:
+    spire:
+      install:
+        initImage:
+          repository: "registry.ring0:5000/library/busybox"
+          tag: "1.37.0"
+          useDigest: false
+        server:
+          image:
+            repository: "registry.ring0:5000//spiffe/spire-server"
+            tag: "1.9.6"
+            useDigest: false

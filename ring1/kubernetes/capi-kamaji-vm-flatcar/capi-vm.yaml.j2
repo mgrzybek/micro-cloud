@@ -1,0 +1,196 @@
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha1
+kind: KamajiControlPlane
+metadata:
+  name: capi-vm
+  namespace: {{ namespace }}
+spec:
+  dataStoreName: microcloud
+  controllerManager:
+    extraArgs:
+      - --cloud-provider=external
+  addons:
+    coreDNS:
+      dnsServiceIPs:
+      - 172.26.0.10
+      imageRepository: "registry.ring0:5000/registry.k8s.io"
+  kubelet:
+    cgroupfs: systemd
+    preferredAddressTypes:
+      - ExternalIP
+      - InternalIP
+      - Hostname
+  network:
+    serviceType: LoadBalancer
+    serviceAnnotations:
+      io.cilium/lb-ipam-ips: {{ cp_host }}
+      tailscale.com/expose: "true"
+      tailscale.com/hostname: capi-vm
+    serviceLabels:
+      ring0/kaas: "true"
+  registry: "registry.{{ ts_suffix }}:443/registry.k8s.io"
+  replicas: 1
+  version: v1.33.2
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: Cluster
+metadata:
+  name: capi-vm
+  namespace: {{ namespace }}
+spec:
+  clusterNetwork:
+    apiServerPort: 6443
+    pods:
+      cidrBlocks:
+      - 192.168.0.0/16
+    services:
+      cidrBlocks:
+      - 172.26.0.0/16
+  controlPlaneEndpoint:
+    host: {{ cp_host }}
+    port: 6443
+  controlPlaneRef:
+    apiVersion: controlplane.cluster.x-k8s.io/v1beta1
+    kind: KamajiControlPlane
+    name: capi-vm
+  infrastructureRef:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+    kind: TinkerbellCluster
+    name: capi-vm
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: TinkerbellCluster
+metadata:
+  name: capi-vm
+  namespace: {{ namespace }}
+spec:
+  imageLookupBaseRegistry: http://registry.ring0:8080/assets
+  controlPlaneEndpoint:
+    host: {{ cp_host }}
+    port: 6443
+---
+apiVersion: cluster.x-k8s.io/v1beta1
+kind: MachineDeployment
+metadata:
+  labels:
+    cluster.x-k8s.io/cluster-name: capi-vm
+    pool: worker-a
+  name: capi-vm-worker-a
+  namespace: {{ namespace }}
+spec:
+  clusterName: capi-vm
+  replicas: 1
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: capi-vm
+      pool: worker-a
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: capi-vm
+        pool: worker-a
+    spec:
+      bootstrap:
+        configRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+          kind: KubeadmConfigTemplate
+          name: capi-vm-worker-a
+      clusterName: capi-vm
+      infrastructureRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+        kind: TinkerbellMachineTemplate
+        name: capi-vm-worker-a
+      version: v1.33.2
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta1
+kind: TinkerbellMachineTemplate
+metadata:
+  name: capi-vm-worker-a
+  namespace: {{ namespace }}
+spec:
+  template:
+    spec:
+      hardwareAffinity:
+        required:  # 'required' entries are OR'd
+        - labelSelector:
+            matchLabels:
+              kubernetes: "true"
+      templateOverride: |-
+        version: "0.1"
+        name: airgap-template
+        global_timeout: 6000
+        tasks:
+          - name: "airgap-install"
+            worker: "{{ '{{' }}.device_1}}"
+            actions:
+              - name: "dump-ignition"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
+                timeout: 600
+                command:
+                - sh
+                - -c
+                - echo {{ignition_base64}} | base64 -d > /statedir/ignition.json # Decode Ignition config to a file.
+              - name: "flatcar-install"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /dev:/dev                  # Needed for accessing the disk so that we can install Flatcar on it.
+                - /etc/os/release:/etc/os/release:ro # Needed to skip a warning running flatcar-install.sh
+                - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
+                - /tmp:/tmp                  # Bind /tmp instead of writing artifacts in a volume
+                timeout: 1200
+                command:
+                - /bin/flatcar-install.sh
+                - -s
+                - -i
+                - /statedir/ignition.json
+                - -b 
+                - http://registry.ring0:8080/assets/flatcar
+              - name: "reboot"
+                image: registry.ring0:5000/jacobweinstock/waitdaemon:0.2.1
+                timeout: 90
+                pid: host
+                command:
+                - reboot
+                environment:
+                  IMAGE: registry.ring0:5000/library/alpine:latest
+                  WAIT_SECONDS: 10
+                volumes:
+                - /var/run/docker.sock:/var/run/docker.sock
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta1
+kind: KubeadmConfigTemplate
+metadata:
+  name: capi-vm-worker-a
+  namespace: {{ namespace }}
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          kubeletExtraArgs:
+            provider-id: PROVIDER_ID
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: ring0-kaas-pool-l2
+  namespace: kube-system
+spec:
+  blocks:
+  - cidr: {{ cp_host }}/32
+  serviceSelector:
+    matchLabels:
+      ring0/kaas: "true"
+---
+apiVersion: cilium.io/v2alpha1
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: ring0-kaas
+  namespace: kube-system
+spec:
+  interfaces:
+  - {{ announcement_interface }}
+  externalIPs: false
+  loadBalancerIPs: true

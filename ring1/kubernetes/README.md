@@ -8,3 +8,4 @@ Here are the available deployments.
 |------------------------|------------|--------------|--------------------|-------------|------------------------------------|
 | Image-builder + Ubuntu | ✅         | ✅           | ✅                 | ❌          | [Here](./capi-kubeadm-vm-ubuntu/)  |
 | Flatcar Linux          | ✅         | ✅           | ✅                 | ❌          | [Here](./capi-kubeadm-vm-flatcar/) |
+| Flatcar Linux          | ✅         | ❌           | ❌                 | ✅          | [Here](./capi-kamaji-vm-flatcar/) |
