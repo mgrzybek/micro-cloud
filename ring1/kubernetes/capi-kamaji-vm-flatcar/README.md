@@ -5,7 +5,7 @@ The default CNI is Cilium.
 
 This allows us to validate CAPI and CAPT behaviours without provisioning real hardware.
 
-Tfe controlplane endpoint is available at 192.168.3.8 and is also published via Tailscale (capi-vm).
+The controlplane endpoint is available at 192.168.3.8 and is also published via Tailscale (capi-vm).
 
 ```console
 task: Available tasks for this project:
