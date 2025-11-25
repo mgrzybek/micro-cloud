@@ -4,3 +4,17 @@ metadata:
   labels:
     kubernetes.io/metadata.name: platform-management
   name: platform-management
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: kamaji-system
+  name: kamaji-system
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: tinkerbell-system
+  name: tinkerbell-system

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kamaji-metrics-service
-  namespace: platform-management
+  namespace: kamaji-system
 spec:
   ports:
     - port: 8080
@@ -18,7 +18,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: kamaji-webhook-service
-  namespace: platform-management
+  namespace: kamaji-system
 spec:
   ports:
     - port: 443

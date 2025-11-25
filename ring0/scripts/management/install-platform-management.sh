@@ -34,7 +34,7 @@ function install_cilium() {
 		-o $RING0_ROOT/dist/cilium-values.yaml
 
 	cilium install --values $RING0_ROOT/dist/cilium-values.yaml
-	cilium status --wait
+	cilium status --wait --wait-duration=20m
 }
 
 function install_cert_manager() {
@@ -221,12 +221,4 @@ function install_netbox() {
 	kubectl wait -n platform-management --for=condition=Available deployment/cmdb-netbox
 	kubectl wait -n platform-management --for=condition=Available deployment/cmdb-netbox-worker
 	print_check "Netbox is ready"
-}
-
-function install_kamaji() {
-	print_milestone "Installing kamaji"
-
-	helm upgrade --install --namespace platform-management kamaji-crds clastix/kamaji-crds
-	kubectl apply -f $MANIFESTS_PATH/05-kamaji/
-	kubectl wait -n platform-management --for=condition=Available deployment/kamaji --timeout=600s
 }

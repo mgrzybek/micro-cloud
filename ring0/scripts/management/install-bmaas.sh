@@ -167,7 +167,7 @@ function install_zot() {
 	install_registry_api_gateway
 
 	print_check "Checking the deployment"
-	if kubectl -n $BMAAS_NAMESPACE wait --for=condition=Ready pod/zot-0; then
+	if kubectl -n $BMAAS_NAMESPACE wait --for=condition=Ready --timeout=600s pod/zot-0; then
 		echo "zot: OK"
 	fi
 	echo
@@ -269,4 +269,27 @@ function create_announcement_configuration() {
 		$MANIFESTS_PATH/01-cilium/l2-announcement.yaml.j2 \
 		-o $RING0_ROOT/dist/l2-announcement.yaml
 	kubectl apply -f $RING0_ROOT/dist/l2-announcement.yaml
+}
+
+function install_kamaji() {
+	print_milestone "Installing kamaji"
+
+	helm upgrade --install kamaji-crds clastix/kamaji-crds --namespace kamaji-system
+	helm upgrade --install kamaji-etcd clastix/kamaji-etcd --namespace kamaji-system --set replicas=1 --set datastore.name=microcloud
+
+	kubectl apply -f $MANIFESTS_PATH/05-kamaji/
+	kubectl wait -n kamaji-system --for=condition=Available deployment/kamaji --timeout=600s
+}
+
+function install_cluster_api() {
+	print_milestone "Installing cluster api"
+
+	cat >~/.cluster-api/clusterctl.yaml <<EOF
+providers:
+- name: "tinkerbell"
+  url: "https://github.com/tinkerbell/cluster-api-provider-tinkerbell/releases/v0.6.7/infrastructure-components.yaml"
+  type: "InfrastructureProvider"
+EOF
+
+	clusterctl init --infrastructure tinkerbell --control-plane kamaji
 }

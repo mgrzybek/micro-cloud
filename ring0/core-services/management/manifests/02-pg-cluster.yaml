@@ -28,17 +28,6 @@ spec:
 apiVersion: postgresql.cnpg.io/v1
 kind: Database
 metadata:
-  name: kamaji
-  namespace: platform-management
-spec:
-  name: kamaji
-  owner: app
-  cluster:
-    name: tooling
----
-apiVersion: postgresql.cnpg.io/v1
-kind: Database
-metadata:
   name: authentik
   namespace: platform-management
 spec:

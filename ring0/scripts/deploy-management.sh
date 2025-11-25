@@ -61,10 +61,6 @@ fi
 
 install_database
 
-if ! helm list -n platform-management | grep -q kamaji; then
-	install_kamaji
-fi
-
 if ! helm list -n platform-management | grep -q authentik; then
 	install_idp_api_gateway
 fi

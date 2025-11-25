@@ -6,7 +6,7 @@ metadata:
     app.kubernetes.io/name: kamaji
     app.kubernetes.io/instance: kamaji
     app.kubernetes.io/component: controller-manager
-  namespace: platform-management
+  namespace: kamaji-system
 spec:
   replicas: 1
   selector:
@@ -31,7 +31,7 @@ spec:
             - --leader-elect
             - --metrics-bind-address=:8080
             - --tmp-directory=/tmp/kamaji
-            - --datastore=postgres-cnpg
+            - --datastore=microcloud
           env:
             - name: POD_NAMESPACE
               valueFrom:
@@ -41,7 +41,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.serviceAccountName
-          image: "clastix/kamaji:edge-25.8.4"
+          image: "clastix/kamaji:latest"
           imagePullPolicy: Always
           livenessProbe:
             httpGet:

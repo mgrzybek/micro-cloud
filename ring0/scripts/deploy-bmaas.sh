@@ -55,4 +55,8 @@ else
 	print_check "CoreDNS is already installed"
 fi
 
+install_kamaji
+
+install_cluster_api
+
 rm -rf $BUFFER
