@@ -12,6 +12,7 @@ task: Available tasks for this project:
 * create-capi-vm:            Create tinkerbell template and workflow
 * create-ignition:           Create dedicated ignition file for CAPI and CAPT
 * delete-nodes:              Delete virtual instances and cluster
+* deploy-cilium:             Deploy cilium
 * deploy-nodes:              Create Hardware objects and start virtual instances
 * populate-extensions:       Add Kubernetes extension files to the assets service
 * populate-registry:         Add some OCI images into the registry
@@ -30,6 +31,7 @@ task populate-registry
 task deploy-nodes
 task create-ignition
 task create-capi-vm
+task deploy-cilium
 ```
 
 ## Delete the cluster

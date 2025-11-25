@@ -5,6 +5,37 @@ vars:
     sh: tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}'
 tasks:
   #############################################################################
+  # butane
+  #
+  create-butane-oci:
+    desc: Create the butane tinkerbell action OCI image
+    vars:
+      image_build_commands: nix-build /var/build/butane.nix ; cat result > /var/build/butane.tar.gz
+      image_name: butane
+    cmds:
+      - mkdir -p dist
+      - incus file push butane.nix forge/root/
+      - incus exec forge -- apt install -y skopeo
+      - incus exec forge -- docker pull nixos/nix
+      - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
+      - incus file pull forge/root/butane.tar.gz dist/
+    generates:
+      - dist/{{.image_name}}.tar.gz
+    status:
+      - test -f dist/{{.image_name}}.tar.gz
+    sources:
+      - "{{.image_name}}.nix"
+  push-butane-oci:
+    desc: Push butane OCI to the registry
+    preconditions:
+      - test -f dist/{{.image_name}}.tar.gz
+    vars:
+      image_name: butane
+    sources:
+      - "{{.image_name}}.nix"
+    cmds:
+      - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+  #############################################################################
   # flatcar-install
   # 
   create-flatcar-install-oci:
@@ -27,11 +58,10 @@ tasks:
       - "{{.image_name}}.nix"
   push-flatcar-install-oci:
     desc: Push flatcar-install OCI to the registry
+    preconditions:
+      - test -f dist/{{.image_name}}.tar.gz
     vars:
       image_name: flatcar-install
-    sources:
-      - dist/{{.image_name}}.tar.gz
-      - "{{.image_name}}.nix"
     cmds:
       - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
   #############################################################################
@@ -50,16 +80,16 @@ tasks:
       - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
       - incus file pull forge/root/cloud-init.tar.gz dist/
     generates:
-      - dist/{{.image_name}}
+      - dist/{{.image_name}}.tar.gz
     status:
       - test -f dist/{{.image_name}}.tar.gz
     sources:
       - "{{.image_name}}.nix"
   push-cloud-init-oci:
     desc: Push cloud-init OCI to the registry
+    preconditions:
+      - test -f dist/{{.image_name}}.tar.gz
     vars:
       image_name: cloud-init
-    sources:
-      - dist/{{.image_name}}.tar.gz
     cmds:
       - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest

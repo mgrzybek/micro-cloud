@@ -123,7 +123,71 @@ spec:
           - name: "airgap-install"
             worker: "{{ '{{' }}.device_1}}"
             actions:
-              - name: "dump-ignition"
+              - name: "bundle-crt-dump"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /statedir:/statedir
+                timeout: 600
+                command:
+                - sh
+                - -c
+                - echo {{ bundle_crt_base64 }} | base64 -d > /statedir/bundle.crt
+
+              - name: "cloudinit-dump-conf-directories"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /etc:/etc
+                timeout: 600
+                command:
+                - sh
+                - -c
+                - mkdir -p /etc/cloud/cloud.cfg.d/
+
+              - name: "cloudinit-dump-conf-datasource"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /etc:/etc
+                timeout: 600
+                command:
+                - sh
+                - -c
+                - echo {{ cloudinit_ds_identity_base64 }} | base64 -d > /etc/cloud/ds-identify.cfg
+
+              - name: "cloudinit-dump-conf-tinkerbell"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /etc:/etc
+                timeout: 600
+                command:
+                - sh
+                - -c
+                - echo {{ cloudinit_tinkerbell_base64 }} | base64 -d > /etc/cloud/cloud.cfg.d/10_tinkerbell.cfg
+
+              - name: "cloudinit-init"
+                image: "registry.ring0:5000/cloud-init:latest"
+                volumes:
+                - /etc:/etc
+                - /run:/run
+                - /var:/var
+                timeout: 600
+                command:
+                - cloud-init
+                - init
+
+              - name: "cloudinit-write-files"
+                image: "registry.ring0:5000/cloud-init:latest"
+                volumes:
+                - /etc:/etc
+                - /run:/run
+                - /var:/var
+                timeout: 600
+                command:
+                - cloud-init
+                - single
+                - --name
+                - write_files
+
+              - name: "dump-butane-system"
                 image: "registry.ring0:5000/flatcar-install:latest"
                 volumes:
                 - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
@@ -131,7 +195,66 @@ spec:
                 command:
                 - sh
                 - -c
-                - echo {{ignition_base64}} | base64 -d > /statedir/ignition.json # Decode Ignition config to a file.
+                - echo {{butane_system_base64}} | base64 -d > /statedir/system.yaml
+
+              - name: "dump-butane-kubeadm"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
+                timeout: 600
+                command:
+                - sh
+                - -c
+                - echo {{butane_kubeadm_base64}} | base64 -d > /statedir/kubeadm.yaml
+
+              - name: "dump-butane-merge"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
+                timeout: 600
+                command:
+                - sh
+                - -c
+                - echo {{butane_merge_base64}} | base64 -d > /statedir/merge.yaml
+
+              - name: "dump-ignition-system"
+                image: "registry.ring0:5000/butane:latest"
+                volumes:
+                - /statedir:/statedir # Needed for passing the Ignition config JSON and running flatcar-install.
+                - /run:/run:ro        # Needed to grab the kubeadm join config
+                timeout: 600
+                command:
+                - butane
+                - --strict
+                - --files-dir=/statedir
+                - /statedir/system.yaml
+                - --output=/statedir/system.json
+
+              - name: "dump-ignition-kubeadm"
+                image: "registry.ring0:5000/butane:latest"
+                volumes:
+                - /statedir:/statedir # Needed for passing the Ignition config JSON and running flatcar-install.
+                - /run:/run:ro        # Needed to grab the kubeadm join config
+                timeout: 600
+                command:
+                - butane
+                - --strict
+                - --files-dir=/run/kubeadm
+                - /statedir/kubeadm.yaml
+                - --output=/statedir/kubeadm.json
+
+              - name: "dump-ignition-merge"
+                image: "registry.ring0:5000/butane:latest"
+                volumes:
+                - /statedir:/statedir          # Needed for passing the Ignition config JSON and running flatcar-install.
+                timeout: 600
+                command:
+                - butane
+                - --strict
+                - --files-dir=/statedir
+                - /statedir/merge.yaml
+                - --output=/statedir/ignition.json
+
               - name: "flatcar-install"
                 image: "registry.ring0:5000/flatcar-install:latest"
                 volumes:
@@ -147,6 +270,7 @@ spec:
                 - /statedir/ignition.json
                 - -b 
                 - http://registry.ring0:8080/assets/flatcar
+
               - name: "reboot"
                 image: registry.ring0:5000/jacobweinstock/waitdaemon:0.2.1
                 timeout: 90

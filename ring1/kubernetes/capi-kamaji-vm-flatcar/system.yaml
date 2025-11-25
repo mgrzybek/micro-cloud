@@ -1,10 +1,8 @@
 variant: flatcar
 version: 1.1.0
-
 kernel_arguments:
   should_exist:
     - flatcar.autologin
-
 storage:
   directories:
     - path: /etc/kubernetes/manifests
@@ -70,39 +68,19 @@ storage:
           runtime_type = "io.containerd.runc.v2"
           [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
           SystemdCgroup = true
-    # cloud-init
-    - path: /etc/cloud/cloud.cfg.d/10_tinkerbell.cfg
-      contents:
-        inline: |
-          datasource:
-            Ec2:
-              metadata_urls: ["http://{{ metadata_ipaddr }}:7172"]
-              strict_id: false
-          system_info:
-            default_user:
-              name: tink
-              groups: [wheel, adm]
-              sudo: ["ALL=(ALL) NOPASSWD:ALL"]
-              shell: /bin/bash
-          manage_etc_hosts: localhost
-          network:
-            config: disabled
-          warnings:
-            dsid_missing_source: off
-    - path: /etc/cloud/ds-identify.cfg
-      contents:
-        inline: |
-          datasource: Ec2
 systemd:
   units:
     ###########################################################################
     # Utilities
+    - name: docker.service
+      mask: true
+    - name: docker.socket
+      mask: true
     - enabled: true
       name: sshd.service
     - name: systemd-sysupdate.timer
       enabled: true
     - name: locksmithd.service
-      # NOTE: To coordinate the node reboot in this context, we recommend to use Kured.
       mask: true
     ###########################################################################
     # Kubernetes
@@ -126,38 +104,14 @@ systemd:
         After=containerd.service
         After=network-online.target
         After=cloud-init.service
-        ConditionPathExists=/run/kubeadm/kubeadm-join-config.yaml
+        ConditionPathExists=/var/lib/kubeadm/kubeadm-join-config.yaml
         [Service]
-        ExecStart=/usr/bin/kubeadm join --config /run/kubeadm/kubeadm-join-config.yaml
-        ExecStartPost=/usr/bin/sh -c "docker images | grep -v REPOSITORY | awk '{print $3}' | xargs docker rmi --force"
-        ExecStartPost=/usr/bin/sh -c "echo success > /run/cluster-api/bootstrap-success.complete"
-        ExecStartPost=/usr/bin/systemctl disable docker.service docker.socket cloud-init.service
-        ExecStartPost=/usr/bin/systemctl stop docker.service docker.socket
+        ExecStart=/usr/bin/kubeadm join --config /var/lib/kubeadm/kubeadm-join-config.yaml
         [Install]
         WantedBy=multi-user.target
     - name: containerd.service
       dropins:
         - name: airgap.conf
-          contents: |
+          contents: |-
             [Service]
             Environment=CONTAINERD_CONFIG=/etc/containerd/config.toml
-    ###########################################################################
-    # Cloud-init
-    - name: cloud-init.service
-      enabled: true
-      contents: |
-        [Unit]
-        Description=Cloud-init startup service using docker
-        Requires=containerd.service
-        After=containerd.service
-        After=network-online.target
-        Before=sshd-keygen.service
-        Before=sshd.service
-        [Service]
-        Type=oneshot
-        ExecStartPre=/usr/bin/update-ca-certificates
-        ExecStart=docker run --rm -v /etc:/etc -v /run:/run -v /var:/var registry.ring0:5000/cloud-init cloud-init init
-        ExecStart=docker run --rm -v /etc:/etc -v /run:/run -v /var:/var registry.ring0:5000/cloud-init cloud-init single --name write_files
-        StandardOutput=journal+console
-        [Install]
-        WantedBy=multi-user.target
