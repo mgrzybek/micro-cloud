@@ -123,7 +123,7 @@ tasks:
       - kubectl apply -n $BMAAS_NAMESPACE --wait -f dist/capi-vm.yaml
       - kubectl wait --for=create secret/capi-vm-kubeconfig -n $BMAAS_NAMESPACE --timeout=300s
       - kubectl get secret -n $BMAAS_NAMESPACE capi-vm-kubeconfig -o yaml  | yq '.data.value' | base64 -d | sed 's/{{.cp_host}}/capi-vm/' > dist/kubeconfig
-      - kubectl wait --for=jsonpath='{.status.state}=SUCCESS' workflow/capi-vm-worker-a-wbvwj-kzmwr -n tinkerbell-system --timeout=15m
+      - while ! kubectl get workflow -n $BMAAS_NAMESPACE | grep capi-vm-worker ; do sleep 10 ; done
     generates:
       - dist/capi-vm.yaml
       - dist/kubeconfig
@@ -131,9 +131,14 @@ tasks:
       - capi-vm.yaml.j2
   deploy-cilium:
     desc: Deploy cilium
+    preconditions:
+      - test -f dist/kubeconfig
+    vars:
+      jinja_opts: --strict
+      workflow_name:
+        sh: kubectl get workflow -n $BMAAS_NAMESPACE | awk '/capi/{print $1}'
     cmds:
+      - kubectl wait --for=jsonpath='{.status.state}=SUCCESS' workflow/{{.workflow_name}} -n $BMAAS_NAMESPACE --timeout=15m
       - jinja2 {{.jinja_opts}} {{.jinja_variables}} -o dist/cilium.yaml cilium.yaml.j2
       - cilium install --kubeconfig dist/kubeconfig --values dist/cilium.yaml
       - cilium status --wait --kubeconfig dist/kubeconfig
-    sources:
-      - dist/kubeconfig
