@@ -13,7 +13,6 @@ task: Available tasks for this project:
 * create-ignition:           Create dedicated ignition file for CAPI and CAPT
 * delete-nodes:              Delete virtual instances and cluster
 * deploy-nodes:              Create Hardware objects and start virtual instances
-* init-clusterapi:           Deploy Tinkerbell Cluster API
 * populate-extensions:       Add Kubernetes extension files to the assets service
 * populate-registry:         Add some OCI images into the registry
 ```
@@ -23,7 +22,6 @@ task: Available tasks for this project:
 ```bash
 task populate-extensions
 task populate-registry
-task init-clusterapi
 ```
 
 ## Create the cluster

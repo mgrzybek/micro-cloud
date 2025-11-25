@@ -40,25 +40,6 @@ tasks:
       - for: {var: files}
         cmd: incus exec --cwd /var/lib/matchbox/assets/flatcar/extensions bootstrap -- wget -nc {{.ITEM}}
   #############################################################################
-  # Deploy Tinkerbell Cluster API
-  # 
-  init-clusterapi:
-    desc: Deploy Tinkerbell Cluster API
-    preconditions:
-      - echo $BMAAS_NAMESPACE | grep -qe "[a-z]"
-    vars:
-      tinkerbell_ip:
-        sh: kubectl get svc -n $BMAAS_NAMESPACE tinkerbell -o yaml | yq '.status.loadBalancer.ingress[0].ip'
-    cmds:
-      - |
-        cat > ~/.cluster-api/clusterctl.yaml <<EOF
-        providers:
-          - name: "tinkerbell"
-            url: "https://github.com/tinkerbell/cluster-api-provider-tinkerbell/releases/v0.6.7/infrastructure-components.yaml"
-            type: "InfrastructureProvider"
-        EOF
-      - TINKERBELL_IP={{.tinkerbell_ip}} clusterctl init --infrastructure tinkerbell --control-plane kamaji
-  #############################################################################
   # Delete virtual instances and cluster
   # 
   delete-nodes:
