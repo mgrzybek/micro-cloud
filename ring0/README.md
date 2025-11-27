@@ -235,7 +235,12 @@ task management
 task idp
 ```
 
+> [!WARNING]
+> Installing Authentik can be quite long because of the database initialization.
+
 Now you are ready to populate your directory as needed. Please note that Netbox uses two groups by default: `staff` and `superusers`. You have to add some users to these groups to be able to manage Netbox.
+
+If you want to use Authentik's API to provision resources, you should create a token using the admin account at [https://idp.your-tailscale-suffix/if/admin/#/core/tokens).](https://idp/if/admin/#/core/tokens).
 
 ### Configuring the Netbox provider
 
@@ -250,6 +255,9 @@ export CLIENT_SECRET=xxxxx
 
 task cmdb
 ```
+
+> [!WARNING]
+> Installing Netbox can be quite long because of the database initialization.
 
 ### Configuring Tinkerbell
 

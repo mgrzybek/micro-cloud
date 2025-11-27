@@ -12,6 +12,8 @@ source $RING0_ROOT/scripts/management/install-platform-management.sh
 ################################################################################
 # Starting the tasks
 
+install_idp_api_gateway
+
 if ! helm list -n platform-management | grep authentik | grep -q deployed; then
 	install_authentik
 else

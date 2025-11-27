@@ -149,13 +149,17 @@ function install_authentik() {
 	if [[ ! -f $RING0_ROOT/dist/authentik-values.yaml ]]; then
 		jinja2 --strict \
 			-D secret_key=$(openssl rand -base64 50 | tr -d '\n') -D ts_suffix=$TS_SUFFIX \
-			$MANIFESTS_PATH/03-idp/authentik-values.yaml.j2 \
+			$MANIFESTS_PATH/03-idp/values.yaml.j2 \
 			-o $RING0_ROOT/dist/authentik-values.yaml
 	fi
 
 	helm install idp authentik/authentik \
 		--namespace platform-management \
 		--values $RING0_ROOT/dist/authentik-values.yaml
+
+	print_check "Waiting for the deployments to succeed"
+	kubectl wait -n platform-management --for=condition=Available deployment/idp-authentik-worker --timeout=600s
+	kubectl wait -n platform-management --for=condition=Available deployment/idp-authentik-server --timeout=600s
 }
 
 function create_remote_netbox_auth_secret() {
@@ -215,7 +219,7 @@ function install_netbox() {
 	helm upgrade --install cmdb oci://ghcr.io/netbox-community/netbox-chart/netbox --wait \
 		--namespace platform-management \
 		--values $MANIFESTS_PATH/04-cmdb/netbox-values.yaml \
-		--timeout=600s
+		--timeout=15m
 	print_check "Netbox has been installed"
 
 	kubectl wait -n platform-management --for=condition=Available deployment/cmdb-netbox

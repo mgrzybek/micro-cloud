@@ -12,6 +12,8 @@ source $RING0_ROOT/scripts/management/install-platform-management.sh
 ################################################################################
 # Starting the tasks
 
+install_cmdb_api_gateway
+
 if ! kubectl get secrets -n platform-management | grep -q cmdb-netbox-remote-auth; then
 	create_remote_netbox_auth_secret
 fi

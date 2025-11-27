@@ -1,4 +1,7 @@
 version: 3
+vars:
+  ts_suffix:
+    sh: tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}'
 tasks:
 ##
 ## Bootstrap
@@ -28,6 +31,7 @@ tasks:
 
   idp:
     desc: Deploy the IDP using Helm
+    prompt: You should have a look at https://idp.{{.ts_suffix}}/if/flow/initial-setup/ for post-deployment configuration. Right?
     cmd: bash ./scripts/deploy-idp.sh
 
   cmdb:
@@ -48,7 +52,7 @@ tasks:
       - Are you sure?
     cmds:
       - if incus list | grep -q management ; then incus delete -f management ; else echo management instance already deleted ; fi
-      - rm -f dist/controlplane.yaml dist/worker.yaml dist/talosconfig dist/cp-patch.yaml dist/patch.yaml
+      - rm -f dist/controlplane.yaml dist/worker.yaml dist/talosconfig dist/cp-patch.yaml dist/patch.yaml dist/authentik-values.yaml
       - kubectl config delete-context admin@management
 
   dist-clean:

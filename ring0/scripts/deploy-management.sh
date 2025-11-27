@@ -61,12 +61,4 @@ fi
 
 install_database
 
-if ! helm list -n platform-management | grep -q authentik; then
-	install_idp_api_gateway
-fi
-
-if ! helm list -n platform-management | grep -q netbox; then
-	install_cmdb_api_gateway
-fi
-
 print_check "Deployment ended successfully"
