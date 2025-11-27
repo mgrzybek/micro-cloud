@@ -15,7 +15,7 @@ valkey:
 #
 extraConfig:
   - secret:
-    secretName: idp-netbox-remote-auth
+    secretName: cmdb-netbox-remote-auth
     items:
       - netbox-remote-auth.py
     optional: false

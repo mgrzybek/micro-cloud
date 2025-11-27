@@ -1,6 +1,6 @@
 # Enable python-social-auth
-#REMOTE_AUTH_ENABLED = True
-#REMOTE_AUTH_BACKEND = 'social_core.backends.open_id_connect.OpenIdConnectAuth'
+REMOTE_AUTH_ENABLED = True
+REMOTE_AUTH_BACKEND = 'social_core.backends.open_id_connect.OpenIdConnectAuth'
 
 # python-social-auth config
 SOCIAL_AUTH_OIDC_OIDC_ENDPOINT = "https://idp.{{ts_suffix}}/application/o/{{application_slug}}/"
