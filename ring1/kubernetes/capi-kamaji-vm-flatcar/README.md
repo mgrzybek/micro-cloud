@@ -1,6 +1,11 @@
 # Deploying Kubernetes using Flatcar Linux VMs, Kamaji, Tinkerbell and ClusterAPI
 
 This deployment uses custom butane/ignition and cloud-init to create ready-to-use Flatcar virtual nodes.
+
+> [!NOTE]
+> An experimental ignition feature exists: https://cluster-api.sigs.k8s.io/tasks/experimental-features/ignition.
+> It might be used in the near future.
+
 The default CNI is Cilium.
 
 This allows us to validate CAPI and CAPT behaviours without provisioning real hardware.
