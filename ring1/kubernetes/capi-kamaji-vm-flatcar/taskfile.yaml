@@ -135,6 +135,7 @@ tasks:
       - test -f dist/kubeconfig
     vars:
       jinja_opts: --strict
+      jinja_variables: -D cp_host={{.cp_host}}
       workflow_name:
         sh: kubectl get workflow -n $BMAAS_NAMESPACE | awk '/capi/{print $1}'
     cmds:

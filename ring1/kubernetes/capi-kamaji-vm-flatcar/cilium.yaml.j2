@@ -57,7 +57,7 @@ k8sClientRateLimit:
   burst: 10
 
 k8s:
-  apiServerURLs: "https://192.168.3.8:6443"
+  apiServerURLs: "https://{{cp_host}}:6443"
 
 ###############################################################################
 
@@ -106,6 +106,6 @@ authentication:
           useDigest: false
         server:
           image:
-            repository: "registry.ring0:5000//spiffe/spire-server"
+            repository: "registry.ring0:5000/spiffe/spire-server"
             tag: "1.9.6"
             useDigest: false
