@@ -28,6 +28,10 @@ function install_cilium() {
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml
 	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml
 
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/experimental/gateway.networking.k8s.io_tcproutes.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/experimental/gateway.networking.k8s.io_udproutes.yaml
+	kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml
+
 	jinja2 --strict \
 		-D announcements_iface=$management_services_interface \
 		$MANIFESTS_PATH/01-cilium/values.yaml.j2 \
