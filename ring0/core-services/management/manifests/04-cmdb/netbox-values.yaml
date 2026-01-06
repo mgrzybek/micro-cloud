@@ -15,9 +15,9 @@ valkey:
 #
 extraConfig:
   - secret:
-    secretName: cmdb-netbox-remote-auth
-    items:
-      - netbox-remote-auth.py
+      secretName: cmdb-netbox-remote-auth
+      items:
+        - netbox-remote-auth.py
     optional: false
 extraDeploy:
   - "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cmdb-netbox-sso-pipeline-roles\n  namespace: platform-management\ndata:\n  sso_pipeline_roles.py: |\n    # direct import from https://integrations.goauthentik.io/documentation/netbox/#groups\n    # from django.contrib.auth.models import Group # For Netbox < 4.0.0\n    from netbox.authentication import Group # For Netbox >= 4.0.0\n    \n    class AuthFailed(Exception):\n        pass\n    \n    def add_groups(response, user, backend, *args, **kwargs):\n        try:\n            groups = response['groups']\n        except KeyError:\n            pass\n    \n        # Add all groups from oAuth token\n        for group in groups:\n            group, created = Group.objects.get_or_create(name=group)\n            user.groups.add(group) # For Netbox >= 4.0.0\n    \n    def remove_groups(response, user, backend, *args, **kwargs):\n        try:\n            groups = response['groups']\n        except KeyError:\n            # Remove all groups if no groups in oAuth token\n            user.groups.clear()\n            pass\n    \n        # Get all groups of user\n        user_groups = [item.name for item in user.groups.all()]\n        # Get groups of user which are not part of oAuth token\n        delete_groups = list(set(user_groups) - set(groups))\n    \n        # Delete non oAuth token groups\n        for delete_group in delete_groups:\n            group = Group.objects.get(name=delete_group)\n            # group.user_set.remove(user) # For Netbox < 4.0.0\n            user.groups.remove(group) # For Netbox >= 4.0.0\n    \n    \n    def set_roles(response, user, backend, *args, **kwargs):\n        # Remove Roles temporary\n        user.is_superuser = False\n        user.is_staff = False\n        try:\n            groups = response['groups']\n        except KeyError:\n            # When no groups are set\n            # save the user without Roles\n            user.save()\n            pass\n    \n        # Set roles is role (superuser or staff) is in groups\n        user.is_superuser = True if 'superusers' in groups else False\n        user.is_staff = True if 'staff' in groups else False\n        user.save()\n"
