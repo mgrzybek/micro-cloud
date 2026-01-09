@@ -122,3 +122,30 @@ tasks:
       image_name: machinecfg
     cmds:
       - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+  #############################################################################
+  # debootstrap
+  #
+  create-debootstrap-oci:
+    desc: Create debootstrap OCI image
+    vars:
+      image_build_commands: nix-build /var/build/debootstrap.nix && cat result > /var/build/debootstrap.tar.gz
+      image_name: debootstrap
+    cmds:
+      - mkdir -p dist
+      - incus file push {{.image_name}}.nix forge/root/
+      - incus exec forge -- apt install -y skopeo
+      - incus exec forge -- docker pull nixos/nix
+      - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
+      - incus file pull forge/root/{{.image_name}}.tar.gz dist/
+    generates:
+      - dist/{{.image_name}}.tar.gz
+    status:
+      - test -f dist/{{.image_name}}.tar.gz
+  push-debootstrap-oci:
+    desc: Push debootstrap OCI to the registry
+    preconditions:
+      - test -f dist/{{.image_name}}.tar.gz
+    vars:
+      image_name: debootstrap
+    cmds:
+      - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
