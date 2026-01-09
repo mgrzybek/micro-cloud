@@ -126,8 +126,7 @@ graph
 
     subgraph middlewares["Management middlewares"]
         authentik["Identity Provider"] -- A users' database is ready to be used     --> netbox["CMDB + DCIM + IPAM"]
-        kamaji["Kubernetes Controlplane as a Service"]
-        tinkerbell["Baremetal manager"] -- Tinkerbell has been installed using the operator
+        tinkerbell["Baremetal manager"] -- Tinkerbell has been installed using the operator --> kamaji["Kubernetes Controlplane as a Service"]
     end
 
     system --> middlewares
