@@ -1,9 +1,9 @@
 version: 3
 vars:
   hardwares:
-    - hostname: node-1
+    - hostname: node-0
       mac: "10:66:6a:07:8d:01"
-      #- hostname: node-2
+      #- hostname: node-1
       #  mac: "10:66:6a:07:8d:02"
   skopeo_opts: --dest-tls-verify=false --override-arch=amd64 --override-os=linux
   ts_suffix:
@@ -78,20 +78,6 @@ tasks:
       - jinja2 --strict -D dns_ipaddr=$DNS_IP -D namespace=$BMAAS_NAMESPACE hardwares.yaml.j2 -o dist/hardwares.yaml
       - kubectl apply -f dist/hardwares.yaml
   #############################################################################
-  # Flatcar configuration
-  create-ignition:
-    desc: Create dedicated ignition file for CAPI and CAPT
-    preconditions:
-      - echo $TINKERBELL_IP | fgrep  .
-    cmds:
-      - mkdir -p dist
-      - jinja2 --strict -D metadata_ipaddr=$TINKERBELL_IP {{.butane}}.j2 -o dist/{{.butane}}
-      - butane -d ../../../ring0/dist --pretty --strict dist/{{.butane}} > dist/{{.ignition}}
-    sources:
-      - "{{.butane}}.j2"
-    generates:
-      - dist/{{.ignition}}
-  #############################################################################
   # Create tinkerbell and cluster manifests
   create-capi-vm:
     desc: Create tinkerbell template and workflow
@@ -104,10 +90,6 @@ tasks:
       announcement_interface:
         sh: talosctl --talosconfig ../../../ring0/dist/talosconfig -n management -e management get addresses | grep $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}'
       jinja_opts: --strict
-      cloudinit_ds_identity_base64:
-        sh: base64 -i ds-identify.cfg
-      cloudinit_tinkerbell_base64:
-        sh: jinja2 {{.jinja_opts}} -D metadata_ipaddr=$TINKERBELL_IP 10_tinkerbell.cfg.j2 | base64
       butane_system_base64:
         sh: base64 -i system.yaml
       butane_kubeadm_base64:
@@ -116,7 +98,7 @@ tasks:
         sh: base64 -i merge.yaml
       bundle_crt_base64:
         sh: base64 -i ../../../ring0/dist/bundle.crt
-      jinja_variables: -D namespace=$BMAAS_NAMESPACE -D announcement_interface={{.announcement_interface}} -D cp_host={{.cp_host}} -D ts_suffix={{.ts_suffix}} -D cloudinit_ds_identity_base64={{.cloudinit_ds_identity_base64}} -D cloudinit_tinkerbell_base64={{.cloudinit_tinkerbell_base64}} -D butane_system_base64={{.butane_system_base64}} -D butane_kubeadm_base64={{.butane_kubeadm_base64}} -D butane_merge_base64={{.butane_merge_base64}} -D bundle_crt_base64={{.bundle_crt_base64}}
+      jinja_variables: -D namespace=$BMAAS_NAMESPACE -D announcement_interface={{.announcement_interface}} -D cp_host={{.cp_host}} -D ts_suffix={{.ts_suffix}} -D butane_system_base64={{.butane_system_base64}} -D butane_kubeadm_base64={{.butane_kubeadm_base64}} -D butane_merge_base64={{.butane_merge_base64}} -D bundle_crt_base64={{.bundle_crt_base64}}
     cmds:
       - mkdir -p dist
       - jinja2 {{.jinja_opts}} {{.jinja_variables}} -o dist/capi-vm.yaml capi-vm.yaml.j2

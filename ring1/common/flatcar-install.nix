@@ -36,6 +36,7 @@ in {
 				pkgs.udev
 				pkgs.util-linux
 				pkgs.wget
+				pkgs.yq-go
 			];
 			pathsToLink = [ "/bin" ];
 		};

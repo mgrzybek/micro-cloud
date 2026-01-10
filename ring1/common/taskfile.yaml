@@ -65,35 +65,6 @@ tasks:
     cmds:
       - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
   #############################################################################
-  # cloud-init
-  #
-  create-cloud-init-oci:
-    desc: Create the cloud-init OCI image
-    vars:
-      image_build_commands: nix-build /var/build/cloud-init.nix ; cat result > /var/build/cloud-init.tar.gz
-      image_name: cloud-init
-    cmds:
-      - mkdir -p dist
-      - incus file push cloud-init.nix forge/root/
-      - incus exec forge -- apt install -y skopeo
-      - incus exec forge -- docker pull nixos/nix
-      - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
-      - incus file pull forge/root/cloud-init.tar.gz dist/
-    generates:
-      - dist/{{.image_name}}.tar.gz
-    status:
-      - test -f dist/{{.image_name}}.tar.gz
-    sources:
-      - "{{.image_name}}.nix"
-  push-cloud-init-oci:
-    desc: Push cloud-init OCI to the registry
-    preconditions:
-      - test -f dist/{{.image_name}}.tar.gz
-    vars:
-      image_name: cloud-init
-    cmds:
-      - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
-  #############################################################################
   # machinecfg
   #
   create-machinecfg-oci:
