@@ -50,8 +50,8 @@ spec:
         environment:
           IMAGE: alpine
           WAIT_SECONDS: 60
-          volumes:
-          - /var/run/docker.sock:/var/run/docker.sock
+        volumes:
+        - /var/run/docker.sock:/var/run/docker.sock
 ---
 apiVersion: tinkerbell.org/v1alpha1
 kind: Workflow
