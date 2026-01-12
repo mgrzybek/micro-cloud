@@ -35,7 +35,7 @@ spec:
     global_timeout: 600
     tasks:
     - name: "os installation"
-      worker: "10:66:6a:07:8d:0d"
+      worker: "{{ .machine_mac }}"
       volumes:
       - /dev:/dev
       - /dev/console:/dev/console
