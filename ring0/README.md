@@ -118,15 +118,19 @@ graph
 These are the management services, hosted by the Kubernetes-based management node.
 
 ```mermaid
-graph
+flowchart LR
     subgraph system["System Kubernetes addons"]
         storage["Local storage provisioner"] -- PVC can be created        --> cnpg["PostgreSQL DBaaS operator"]
         cert-manager["Certificates manager"] -- The cert-manager is ready --> cert-issuer["Certificates issuer using the PKI"]
     end
 
     subgraph middlewares["Management middlewares"]
-        authentik["Identity Provider"] -- A users' database is ready to be used     --> netbox["CMDB + DCIM + IPAM"]
-        tinkerbell["Baremetal manager"] -- Tinkerbell has been installed using the operator --> kamaji["Kubernetes Controlplane as a Service"]
+        authentik["Identity Provider"] -- A users' database is ready to be used --> netbox["CMDB + DCIM + IPAM"]
+        forge["Forge"] -- Artifacts can be build from sources --> tinkerbell
+        zot["OCI registry"] -- OCI images can be imported --> kamaji["Kubernetes Controlplane as a Service"]
+        zot -- OCI images can be imported --> tinkerbell["Baremetal manager"] -- Tinkerbell has been installed --> clusterapi["Kubernetes Cluster API"] -- The CAPT and CAPK providers have been installed --> kaas["Baremetal Kubernetes as a Service"]
+        tailscale["Mesh VPN operator"] -- Services can be published on the tailnet --> zot
+        tailscale["Mesh VPN operator"] -- Services can be published on the tailnet -->  kamaji
     end
 
     system --> middlewares
