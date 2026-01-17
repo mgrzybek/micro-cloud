@@ -48,7 +48,7 @@ spec:
         - echo "Hello, this is {{ .machine_mac }}"
         - echo "Ending script here"
         environment:
-          IMAGE: alpine
+          IMAGE: registry.ring0:5000/library/alpine:latest
           WAIT_SECONDS: 60
         volumes:
         - /var/run/docker.sock:/var/run/docker.sock
