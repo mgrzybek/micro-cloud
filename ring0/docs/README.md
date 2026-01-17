@@ -16,7 +16,7 @@ The MaaS system starts the machines using an in-memory Linuxkit-based operating 
 
 ### Populating the private registry
 
-Each functionnality (the core installation or any ring1 deployment) requires some OCI images to work. This is why some scripts are run, using `skopeo`. The syncing process keeps the ptahs but changes the hostname of the repository.
+Each functionnality (the core installation or any ring1 deployment) requires some OCI images to work. This is why some scripts are run, using `skopeo`. The syncing process keeps the paths but changes the hostname of the repository.
 
 For example:  `quay.io/tinkerbell/actions/image2disk:latest` becomes `registry.ring0:5000/tinkerbell/actions/image2disk:latest`.
 
@@ -25,7 +25,7 @@ For example:  `quay.io/tinkerbell/actions/image2disk:latest` becomes `registry.
 Two services are exposed on the netboot network: the assets from the bootstrap service and the registry.
 
 On the local network, a reverse proxy is used. A floating IP is attached using Cilium.
-On the SDN, the `Service` object, part of the Zot deployment, is annotated and published using Tailscale.
+On the SDN, the `Gateway` object, part of the Zot deployment, is annotated and published using Tailscale.
 
 ![Publishing ZOT and the assets](./zot.svg)
 
