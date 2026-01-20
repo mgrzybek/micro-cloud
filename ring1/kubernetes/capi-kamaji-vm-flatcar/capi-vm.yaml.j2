@@ -154,7 +154,7 @@ spec:
                 command:
                 - sh
                 - -c
-                - echo {{butane_system_base64}} | base64 -d > /statedir/system.yaml
+                - echo {{butane_system_base64}} | base64 -d > /statedir/system.bu
 
               - name: "dump-butane-kubeadm"
                 image: "registry.ring0:5000/flatcar-install:latest"
@@ -164,7 +164,7 @@ spec:
                 command:
                 - sh
                 - -c
-                - echo {{butane_kubeadm_base64}} | base64 -d > /statedir/kubeadm.yaml
+                - echo {{butane_kubeadm_base64}} | base64 -d > /statedir/kubeadm.bu
 
               - name: "dump-butane-merge"
                 image: "registry.ring0:5000/flatcar-install:latest"
@@ -174,7 +174,7 @@ spec:
                 command:
                 - sh
                 - -c
-                - echo {{butane_merge_base64}} | base64 -d > /statedir/merge.yaml
+                - echo {{butane_merge_base64}} | base64 -d > /statedir/merge.bu
 
               - name: "dump-ignition-system"
                 image: "registry.ring0:5000/butane:latest"
@@ -186,7 +186,7 @@ spec:
                 - butane
                 - --strict
                 - --files-dir=/statedir
-                - /statedir/system.yaml
+                - /statedir/system.bu
                 - --output=/statedir/system.json
 
               - name: "dump-ignition-kubeadm"
@@ -199,7 +199,7 @@ spec:
                 - butane
                 - --strict
                 - --files-dir=/statedir
-                - /statedir/kubeadm.yaml
+                - /statedir/kubeadm.bu
                 - --output=/statedir/kubeadm.json
 
               - name: "dump-ignition-merge"
@@ -211,7 +211,7 @@ spec:
                 - butane
                 - --strict
                 - --files-dir=/statedir
-                - /statedir/merge.yaml
+                - /statedir/merge.bu
                 - --output=/statedir/ignition.json
 
               - name: "flatcar-install"
