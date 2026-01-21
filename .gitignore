@@ -1,5 +1,6 @@
 # Distribution artifacts
 dist/
+*.bkp
 
 # PKI
 ring0/core-services/pki/files
