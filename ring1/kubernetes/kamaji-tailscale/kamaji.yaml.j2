@@ -1,0 +1,43 @@
+apiVersion: kamaji.clastix.io/v1alpha1
+kind: TenantControlPlane
+metadata:
+  name: {{cluster_name}}
+  namespace: {{namespace}}
+  labels:
+    sveltos-management: "true"
+spec:
+  addons:
+    coreDNS:
+      imageRepository: "registry.{{ts_suffix}}:442/registry.k8s.io"
+  controlPlane:
+    deployment:
+      extraArgs:
+        controllerManager:
+          - --cloud-provider=external
+      replicas: 1
+      registrySettings:
+        registry: "registry.{{ts_suffix}}:443/registry.k8s.io"
+    service:
+      additionalMetadata:
+        annotations:
+          tailscale.com/expose: "true"
+          tailscale.com/hostname: {{cluster_name}}
+      serviceType: ClusterIP
+  dataStore: microcloud
+  kubernetes:
+    kubelet:
+      cgroupfs: systemd
+      preferredAddressTypes:
+        - ExternalIP
+        - InternalIP
+        - Hostname
+    version: "v1.33.2"
+  networkProfile:
+    address: {{apiserver_tailscale_address}}
+    certSANs:
+      - {{cluster_name}}
+      - {{cluster_name}}.{{ts_suffix}}
+    port: 6443
+    serviceCidr: 172.26.0.0/24
+    dnsServiceIPs:
+      - 172.26.0.10

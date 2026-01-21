@@ -1,0 +1,54 @@
+version: '3'
+tasks:
+  clean:
+    desc: Supprime les fichiers générés dans dist/
+    cmds:
+      - rm -rf dist/
+    silent: true
+  delete:
+    desc: Delete the Kamaji TenantControlPlane
+    prompt:
+      - This is a dangerous command... Do you want to continue?
+      - Are you sure?
+    cmds:
+      - kubectl delete -f dist/kamaji.yaml
+  create:
+    desc: Creates the Kamaji TenantControlPlane and publish it on Tailscale
+    vars:
+      jinja_opts: --strict -D ts_suffix=$TS_SUFFIX -D namespace=$NAMESPACE -D cluster_name=$CLUSTER_NAME
+    preconditions:
+      - sh: '[ -n "$TS_SUFFIX" ]'
+        msg: "Missing env variable: TS_SUFFIX."
+      - sh: '[ -n "$NAMESPACE" ]'
+        msg: "Missing env variable: NAMESPACE."
+      - sh: '[ -n "$CLUSTER_NAME" ]'
+        msg: "Missing env variable: CLUSTER_NAME."
+      - sh: '! test -f dist/join-command.sh'
+        msg: "The file dist/join-command.sh already exists. Please run 'task clean' if you want to regenerate it."
+    cmds:
+      - mkdir -p dist
+      # Create Tailscale service first
+      - jinja2 {{.jinja_opts}} service.yaml.j2 -o dist/service.yaml
+      - kubectl apply -f dist/service.yaml
+      # Wait for the Tailscale endpoint to be reachable
+      - sleep 10
+      - while ! tailscale ping {{.CLUSTER_NAME}} | grep pong ; do sleep 5 ; done
+      # Create the Kamaji TCP using Tailscale's IP address
+      - "TS_IP=$(tailscale status --json | jq -r '.Peer[] | select(.HostName==\"{{.CLUSTER_NAME}}\") | .TailscaleIPs[0]')\njinja2 {{.jinja_opts}} -D apiserver_tailscale_address=$TS_IP kamaji.yaml.j2 -o dist/kamaji.yaml \n"
+      - kubectl apply -f dist/kamaji.yaml
+      # Wait for the secret to be created
+      - kubectl -n {{.NAMESPACE}} wait --for=create secret/{{.CLUSTER_NAME}}-admin-kubeconfig --timeout=120s
+      # Get the kubeconfig
+      - kubectl -n {{.NAMESPACE}} get secrets "{{.CLUSTER_NAME}}-admin-kubeconfig" -o jsonpath='{.data.admin\.conf}' | base64 -d > dist/kubeconfig
+      - |
+        OLD_IP=$(kubectl get svc -n {{.NAMESPACE}} -o jsonpath='{.items[0].spec.clusterIP}')
+        TS_IP=$(tailscale status --json | jq -r '.Peer[] | select(.HostName=="{{.CLUSTER_NAME}}") | .TailscaleIPs[0]')
+
+        gsed -i "s/$OLD_IP/$TS_IP/" dist/kubeconfig
+      # Create the join command
+      - |-
+        JOIN_CMD=$(kubeadm --kubeconfig dist/kubeconfig token create --print-join-command)
+        echo "#!/bin/bash" > dist/join-command.sh
+        echo "$JOIN_CMD" >> dist/join-command.sh
+        chmod +x dist/join-command.sh
+        echo "Commande de join sauvegardée dans dist/join-command.sh"
