@@ -233,26 +233,71 @@ function populate_zot() {
 	done
 }
 
-function install_coredns() {
-	print_milestone "Installing core dns"
+function create_coredns_oci() {
+	print_milestone "Creating custom coredns OCI image"
 
-	local management_services_ipaddr="$(echo $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR | awk -F/ '{print $1}')"
+	local image_name=coredns
+	local image_build_commands="nix-build /var/build/$image_name.nix && cat result > /var/build/$image_name.tar.gz"
 
-	print_step "Creating values.yaml"
-	jinja2 --strict \
-		-D services_iface_ip_address=$management_services_ipaddr \
-		-D coredns_ip=$DNS_IP \
-		-D registry_ip=$REGISTRY_IP \
-		$MANIFESTS_PATH/05-coredns/values.yaml.j2 \
-		-o $RING0_ROOT/dist/coredns-values.yaml
+	mkdir -p $RING0_ROOT/dist
 
-	print_step "Installing the helm chart"
-	if ! helm repo list | grep -qw coredns; then
-		helm repo add coredns https://coredns.github.io/helm
+	if [ ! -f $RING0_ROOT/dist/$image_name.tar.gz ]; then
+		print_step "Building the image"
+
+		incus file push $RING0_ROOT/core-services/forge/$image_name.nix forge/root/
+		incus exec forge -- docker pull nixos/nix
+		incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "$image_build_commands"
+		incus file pull forge/root/$image_name.tar.gz $RING0_ROOT/dist/
 	fi
-	helm install coredns coredns/coredns \
-		--namespace=$BMAAS_NAMESPACE \
-		--values $RING0_ROOT/dist/coredns-values.yaml
+
+	print_check "Checking OCI image presence"
+	ls -lh $RING0_ROOT/dist/$image_name.tar.gz
+}
+
+function push_coredns_oci() {
+	print_milestone "Pushing coredns OCI image to the internal registry"
+
+	local image_name=coredns
+
+	if [ ! -f $RING0_ROOT/dist/$image_name.tar.gz ]; then
+		create_coredns_oci
+	fi
+
+	print_step "Push the image"
+	skopeo copy \
+		--dest-tls-verify=false --override-arch=amd64 --override-os=linux \
+		docker-archive:$RING0_ROOT/dist/$image_name.tar.gz docker://registry.$TS_SUFFIX:443/$image_name:latest
+}
+
+function install_coredns() {
+	print_milestone "Installing coredns"
+
+	push_coredns_oci
+
+	local coredns_netbox_token=""
+
+	if [ -z "$COREDNS_NETBOX_TOKEN" ]; then
+		coredns_netbox_token="$(cat $RING0_ROOT/dist/coredns.token)"
+	else
+		coredns_netbox_token="$COREDNS_NETBOX_TOKEN"
+	fi
+
+	if ! echo -n $coredns_netbox_token | wc -c | awk '$1 == 40 {print "ok"}' | grep -q ok; then
+		echo "No valid Netbox token found. '$coredns_netbox_token' is not 40-character long."
+		return 1
+	fi
+
+	print_step "Creating coredns.yaml"
+	jinja2 --strict \
+		-D namespace=$BMAAS_NAMESPACE \
+		-D coredns_netbox_token=$coredns_netbox_token \
+		-D coredns_ip=$DNS_IP \
+		-D ts_suffix=$TS_SUFFIX \
+		$MANIFESTS_PATH/05-coredns/coredns.yaml.j2 \
+		-o $RING0_ROOT/dist/coredns.yaml
+
+	print_step "Installing coredns"
+	kubectl apply --wait --namespace $BMAAS_NAMESPACE -f $RING0_ROOT/dist/coredns.yaml
 }
 
 function create_announcement_configuration() {

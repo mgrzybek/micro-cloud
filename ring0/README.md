@@ -264,7 +264,10 @@ task cmdb
 
 ### Configuring Tinkerbell
 
+Some pre-configuration is needed to make CoreDNS use Netbox as an IPAM. You must create a `coredns` service account able to read IP addresses from the IPAM section.
+
 ```shell
+export COREDNS_NETBOX_TOKEN="A 40-character long token"
 export REGISTRY_IP=192.168.3.4
 export TINKERBELL_IP=192.168.3.5
 export HOOKOS_IP=192.168.3.6

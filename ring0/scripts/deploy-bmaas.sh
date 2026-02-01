@@ -49,7 +49,7 @@ else
 	print_check "Tinkerbell is already installed"
 fi
 
-if ! helm list -n $BMAAS_NAMESPACE | awk '{print $1}' | grep -qw coredns; then
+if ! kubectl get deployment --namespace $BMAAS_NAMESPACE coredns 2>&1 >/dev/null; then
 	install_coredns
 else
 	print_check "CoreDNS is already installed"
