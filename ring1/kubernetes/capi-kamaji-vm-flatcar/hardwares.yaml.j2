@@ -13,6 +13,8 @@ spec:
     instance:
       hostname: "node-0"
       id: 10:66:6a:07:8d:01
+  vendorData: |
+    {"ignition":{"version":"3.3.0"},"storage":{"files":[{"path":"/etc/hostname","contents":{"compression":"","source":"data:,node-0.ring0"},"mode":420}]}}
   interfaces:
     - dhcp:
         arch: x86_64
@@ -44,6 +46,8 @@ spec:
     instance:
       hostname: "node-1"
       id: 10:66:6a:07:8d:02
+  vendorData: |
+    {"ignition":{"version":"3.3.0"},"storage":{"files":[{"path":"/etc/hostname","contents":{"compression":"","source":"data:,node-1.ring0"},"mode":420}]}}
   interfaces:
     - dhcp:
         arch: x86_64

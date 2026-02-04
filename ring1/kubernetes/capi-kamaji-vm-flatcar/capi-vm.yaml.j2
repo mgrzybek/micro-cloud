@@ -128,53 +128,72 @@ spec:
                 volumes:
                 - /statedir:/statedir
                 timeout: 600
+                environment:
+                  BUNDLE_CRT_BASE64: "{{bundle_crt_base64}}"
                 command:
                 - sh
                 - -c
-                - echo {{ bundle_crt_base64 }} | base64 -d > /statedir/bundle.crt
+                - echo $BUNDLE_CRT_BASE64 | base64 -d > /statedir/bundle.crt
 
               - name: "Get kubeadm join config from user-data"
                 image: "registry.ring0:5000/flatcar-install:latest"
                 volumes:
                 - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
                 timeout: 600
+                environment:
+                  USER_DATA: "{{ '{{' }} .Hardware.UserData | b64enc }}"
                 command:
                 - sh
                 - -c
-                - |
-                  METADATA_IPADDR=$(cat /proc/cmdline | tr ' ' '\n' | awk -F= '/grpc/ {print $2}' | awk -F: '{print $1}')
-                  wget -O /statedir/user-data.yaml http://$METADATA_IPADDR:7172/2009-04-04/user-data
-                  cat /statedir/user-data.yaml | yq '.write_files[] | select(.path == "/run/kubeadm/kubeadm-join-config.yaml").content' > /statedir/kubeadm-join-config.yaml
+                - echo $USER_DATA | base64 -d | yq '.write_files[] | select(.path == "/run/kubeadm/kubeadm-join-config.yaml").content' > /statedir/kubeadm-join-config.yaml
+
+              - name: "Get hardware's ignition from vendor-data"
+                image: "registry.ring0:5000/flatcar-install:latest"
+                volumes:
+                - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
+                timeout: 600
+                environment:
+                  VENDOR_DATA: "{{ '{{' }} .Hardware.VendorData | b64enc }}"
+                command:
+                - sh
+                - -c
+                - echo $VENDOR_DATA | base64 -d > /statedir/vendor-data.json
 
               - name: "dump-butane-system"
                 image: "registry.ring0:5000/flatcar-install:latest"
                 volumes:
                 - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
                 timeout: 600
+                environment:
+                  BUTANE_SYSTEM_BASE64: "{{butane_system_base64}}"
                 command:
                 - sh
                 - -c
-                - echo {{butane_system_base64}} | base64 -d > /statedir/system.bu
+                - echo $BUTANE_SYSTEM_BASE64 | base64 -d > /statedir/system.bu
 
               - name: "dump-butane-kubeadm"
                 image: "registry.ring0:5000/flatcar-install:latest"
                 volumes:
                 - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
                 timeout: 600
+                environment:
+                  BUTANE_KUBEADM_BASE64: "{{butane_kubeadm_base64}}"
                 command:
                 - sh
                 - -c
-                - echo {{butane_kubeadm_base64}} | base64 -d > /statedir/kubeadm.bu
+                - echo $BUTANE_KUBEADM_BASE64 | base64 -d > /statedir/kubeadm.bu
 
               - name: "dump-butane-merge"
                 image: "registry.ring0:5000/flatcar-install:latest"
                 volumes:
                 - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
                 timeout: 600
+                environment:
+                  BUTANE_MERGE_BASE64: "{{butane_merge_base64}}"
                 command:
                 - sh
                 - -c
-                - echo {{butane_merge_base64}} | base64 -d > /statedir/merge.bu
+                - echo $BUTANE_MERGE_BASE64 | base64 -d > /statedir/merge.bu
 
               - name: "dump-ignition-system"
                 image: "registry.ring0:5000/butane:latest"
@@ -218,7 +237,7 @@ spec:
                 image: "registry.ring0:5000/flatcar-install:latest"
                 volumes:
                 - /dev:/dev                  # Needed for accessing the disk so that we can install Flatcar on it.
-                - /etc/os/release:/etc/os/release:ro # Needed to skip a warning running flatcar-install.sh
+                - /etc/os-release:/etc/os-release:ro # Needed to skip a warning running flatcar-install.sh
                 - /statedir:/statedir        # Needed for passing the Ignition config JSON and running flatcar-install.
                 - /tmp:/tmp                  # Bind /tmp instead of writing artifacts in a volume
                 timeout: 1200

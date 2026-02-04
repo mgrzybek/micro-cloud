@@ -5,3 +5,4 @@ ignition:
     merge:
       - local: kubeadm.json
       - local: system.json
+      - local: vendor-data.json
