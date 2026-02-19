@@ -13,28 +13,28 @@ tasks:
       image_build_commands: nix-build /var/build/butane.nix ; cat result > /var/build/butane.tar.gz
       image_name: butane
     cmds:
-      - mkdir -p dist
-      - incus file push butane.nix forge/root/
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - incus file push {{.TASKFILE_DIR}}/butane.nix forge/root/
       - incus exec forge -- apt install -y skopeo
       - incus exec forge -- docker pull nixos/nix
       - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
-      - incus file pull forge/root/butane.tar.gz dist/
+      - incus file pull forge/root/butane.tar.gz {{.TASKFILE_DIR}}/dist/
     generates:
-      - dist/{{.image_name}}.tar.gz
+      - "{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz"
     status:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     sources:
-      - "{{.image_name}}.nix"
+      - "{{.TASKFILE_DIR}}/{{.image_name}}.nix"
   push-butane-oci:
     desc: Push butane OCI to the registry
     preconditions:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     vars:
       image_name: butane
     sources:
-      - "{{.image_name}}.nix"
+      - "{{.TASKFILE_DIR}}/{{.image_name}}.nix"
     cmds:
-      - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+      - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
   #############################################################################
   # flatcar-install
   #
@@ -44,26 +44,26 @@ tasks:
       image_build_commands: nix-build /var/build/flatcar-install.nix ; cat result > /var/build/flatcar-install.tar.gz
       image_name: flatcar-install
     cmds:
-      - mkdir -p dist
-      - incus file push flatcar-install.nix forge/root/
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - incus file push {{.TASKFILE_DIR}}/flatcar-install.nix forge/root/
       - incus exec forge -- apt install -y skopeo
       - incus exec forge -- docker pull nixos/nix
       - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
-      - incus file pull forge/root/flatcar-install.tar.gz dist/
+      - incus file pull forge/root/flatcar-install.tar.gz {{.TASKFILE_DIR}}/dist/
     generates:
-      - dist/{{.image_name}}.tar.gz
+      - "{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz"
     status:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     sources:
-      - "{{.image_name}}.nix"
+      - "{{.TASKFILE_DIR}}/{{.image_name}}.nix"
   push-flatcar-install-oci:
     desc: Push flatcar-install OCI to the registry
     preconditions:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     vars:
       image_name: flatcar-install
     cmds:
-      - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+      - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
   #############################################################################
   # coreos-installer
   #
@@ -73,26 +73,26 @@ tasks:
       image_build_commands: nix-build /var/build/coreos-installer.nix && cat result > /var/build/coreos-installer.tar.gz
       image_name: coreos-installer
     cmds:
-      - mkdir -p dist
-      - incus file push {{.image_name}}.nix forge/root/
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - incus file push {{.TASKFILE_DIR}}/{{.image_name}}.nix forge/root/
       - incus exec forge -- apt install -y skopeo
       - incus exec forge -- docker pull nixos/nix
       - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
-      - incus file pull forge/root/{{.image_name}}.tar.gz dist/
+      - incus file pull forge/root/{{.image_name}}.tar.gz {{.TASKFILE_DIR}}/dist/
     generates:
-      - dist/{{.image_name}}.tar.gz
+      - "{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz"
     status:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     sources:
-      - "{{.image_name}}.nix"
+      - "{{.TASKFILE_DIR}}/{{.image_name}}.nix"
   push-coreos-installer-oci:
     desc: Push coreos-installer OCI to the registry
     preconditions:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     vars:
       image_name: coreos-installer
     cmds:
-      - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+      - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
   #############################################################################
   # machinecfg
   #
@@ -102,26 +102,26 @@ tasks:
       image_build_commands: nix-build /var/build/machinecfg.nix ; cat result > /var/build/machinecfg.tar.gz
       image_name: machinecfg
     cmds:
-      - mkdir -p dist
-      - incus file push machinecfg.nix forge/root/
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - incus file push {{.TASKFILE_DIR}}/machinecfg.nix forge/root/
       - incus exec forge -- apt install -y skopeo
       - incus exec forge -- docker pull nixos/nix
       - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
-      - incus file pull forge/root/machinecfg.tar.gz dist/
+      - incus file pull forge/root/machinecfg.tar.gz {{.TASKFILE_DIR}}/dist/
     generates:
-      - dist/{{.image_name}}.tar.gz
+      - "{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz"
     status:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     sources:
-      - "{{.image_name}}.nix"
+      - "{{.TASKFILE_DIR}}/{{.image_name}}.nix"
   push-machinecfg-oci:
     desc: Push machinecfg OCI to the registry
     preconditions:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     vars:
       image_name: machinecfg
     cmds:
-      - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+      - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
   #############################################################################
   # debootstrap
   #
@@ -131,21 +131,21 @@ tasks:
       image_build_commands: nix-build /var/build/debootstrap.nix && cat result > /var/build/debootstrap.tar.gz
       image_name: debootstrap
     cmds:
-      - mkdir -p dist
-      - incus file push {{.image_name}}.nix forge/root/
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - incus file push {{.TASKFILE_DIR}}/{{.image_name}}.nix forge/root/
       - incus exec forge -- apt install -y skopeo
       - incus exec forge -- docker pull nixos/nix
       - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
-      - incus file pull forge/root/{{.image_name}}.tar.gz dist/
+      - incus file pull forge/root/{{.image_name}}.tar.gz {{.TASKFILE_DIR}}/dist/
     generates:
-      - dist/{{.image_name}}.tar.gz
+      - "{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz"
     status:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
   push-debootstrap-oci:
     desc: Push debootstrap OCI to the registry
     preconditions:
-      - test -f dist/{{.image_name}}.tar.gz
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
     vars:
       image_name: debootstrap
     cmds:
-      - skopeo copy {{.skopeo_opts}} docker-archive:dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+      - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
