@@ -408,7 +408,7 @@ function prepare_matchbox_flatcar() {
 	echo "#####################"
 	echo "👷 Installing flatcar assets for matchbox"
 
-	base_url=https://stable.release.flatcar-linux.net/amd64-usr/current
+	base_url=https://flatcar.cdn.cncf.io/stable/amd64-usr/current
 	version=$(curl -s $base_url/version.txt | awk -F= '/FLATCAR_VERSION=/ {print $2}')
 
 	assets=/var/lib/matchbox/assets/flatcar
