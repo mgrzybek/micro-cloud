@@ -1,0 +1,13 @@
+variant: flatcar
+version: 1.1.0
+kernel_arguments:
+  should_exist:
+    - flatcar.autologin
+storage:
+  files:
+    - path: /etc/vconsole.conf
+      mode: 0644
+      contents:
+        inline: |-
+          KEYMAP=fr
+          FONT=eurlatgr

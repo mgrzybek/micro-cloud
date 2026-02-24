@@ -1,0 +1,65 @@
+apiVersion: tinkerbell.org/v1alpha1
+kind: Template
+metadata:
+  name: flatcar-install
+  namespace: mushroomcloud
+spec:
+  data: |
+    version: '0.1'
+    name: flatcar_provisioning
+    global_timeout: 6000
+    tasks:
+    - name: "os-installation"
+      worker: "{{ '{{' }}.machine_mac}}"
+      actions:
+        - name: "Dump butane system.bu file"
+          image: "registry.ring0:5000/flatcar-install:latest"
+          volumes:
+          - /statedir:/statedir # Stateful volume containing the configuration files (crt, butane and ignition)
+          timeout: 600
+          environment:
+            BUTANE_SYSTEM_BASE64: {{butane_system_base64}}
+          command:
+          - sh
+          - -c
+          - echo $BUTANE_SYSTEM_BASE64 | base64 -d > /statedir/system.bu
+
+        - name: "Create ignition system.json from system.bu"
+          image: "registry.ring0:5000/butane:latest"
+          volumes:
+          - /statedir:/statedir # Stateful volume containing the configuration files (crt, butane and ignition)
+          timeout: 600
+          command:
+          - butane
+          - --strict
+          - --files-dir=/statedir
+          - /statedir/system.bu
+          - --output=/statedir/system.json
+
+        - name: "Install flatcar using flatcar-install.sh"
+          image: "registry.ring0:5000/flatcar-install:latest"
+          volumes:
+          - /dev:/dev                          # Needed for accessing the disk so that we can install Flatcar on it.
+          - /etc/os-release:/etc/os-release:ro # Needed to skip a warning running flatcar-install.sh
+          - /statedir:/statedir                # Stateful volume containing the configuration files (crt, butane and ignition)
+          - /tmp:/tmp                          # Bind /tmp instead of writing artifacts in a volume
+          timeout: 1200
+          command:
+          - /bin/flatcar-install.sh
+          - -s
+          - -i
+          - /statedir/system.json
+          - -b 
+          - http://registry.ring0:8080/assets/flatcar
+
+        - name: "Reboot"
+          image: registry.ring0:5000/jacobweinstock/waitdaemon:0.2.1
+          timeout: 90
+          pid: host
+          command:
+          - reboot
+          environment:
+            IMAGE: registry.ring0:5000/library/alpine:latest
+            WAIT_SECONDS: 10
+          volumes:
+          - /var/run/docker.sock:/var/run/docker.sock

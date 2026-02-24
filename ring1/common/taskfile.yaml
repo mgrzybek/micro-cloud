@@ -149,3 +149,21 @@ tasks:
       image_name: debootstrap
     cmds:
       - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+  #############################################################################
+  # Flatcar linux
+  #
+  create-basic-flatcar-install-template:
+    desc: Create a basic Flatcar Linux installation template
+    preconditions:
+      - sh: if [ -z $NAMESPACE ]; then return 1 ; fi
+        msg: NAMESPACE should be given. Did you load your ring1 gitops variables?
+    vars:
+      butane_system_base64:
+        sh: base64 -i flatcar-butane.yaml
+      jinja_opts: --strict
+      jinja_variables_common: -D namespace=$NAMESPACE
+      jinja_variables_ignition: -D butane_system_base64={{.butane_system_base64}}
+    cmds:
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - jinja2 {{.jinja_opts}} {{.jinja_variables_common}} {{.jinja_variables_ignition}} -o dist/flatcar-install-template.yaml flatcar-install-template.yaml.j2
+      - kubectl apply -f dist/flatcar-install-template.yaml
