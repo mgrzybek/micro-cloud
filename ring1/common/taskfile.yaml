@@ -160,9 +160,11 @@ tasks:
     vars:
       butane_system_base64:
         sh: base64 -i flatcar-butane.yaml
+      butane_merge_base64:
+        sh: base64 -i flatcar-merge.yaml
       jinja_opts: --strict
       jinja_variables_common: -D namespace=$NAMESPACE
-      jinja_variables_ignition: -D butane_system_base64={{.butane_system_base64}}
+      jinja_variables_ignition: -D butane_system_base64={{.butane_system_base64}} -D butane_merge_base64={{.butane_merge_base64}}
     cmds:
       - mkdir -p {{.TASKFILE_DIR}}/dist
       - jinja2 {{.jinja_opts}} {{.jinja_variables_common}} {{.jinja_variables_ignition}} -o dist/flatcar-install-template.yaml flatcar-install-template.yaml.j2
