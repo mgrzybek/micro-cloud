@@ -1,30 +1,33 @@
 #! /usr/bin/env bash
 
-RING0_ROOT="$(find $PWD -type d -name ring0)"
+set -euo pipefail
+
+RING0_ROOT="$(find "$PWD" -type d -name ring0 | head -n1)"
 
 ################################################################################
 # External libraries
-source $RING0_ROOT/scripts/common.sh
+# shellcheck source=/dev/null
+source "$RING0_ROOT/scripts/common.sh"
 
 print_milestone "Deploying a testing VM to netboot"
 
 BRIDGE_SERVICES_NAME=services0
 
-if [[ -z "$BRIDGE_SERVICES_NAME" ]]; then
-	echo "BRIDGE_SERVICES_NAME must be defined".
+if [[ -z "${BRIDGE_SERVICES_NAME:-}" ]]; then
+	echo "BRIDGE_SERVICES_NAME must be defined"
 	exit 1
 fi
 
 function create_tinkerbell_machine() {
-	kubectl apply -f $MANIFESTS_PATH/05-tinkerbell/testing-machine.yaml
+	kubectl apply -f "$MANIFESTS_PATH/05-tinkerbell/testing-machine.yaml"
 }
 
 function delete_tinkerbell_machine() {
-	kubectl delete -f $MANIFESTS_PATH/05-tinkerbell/testing-machine.yaml
+	kubectl delete -f "$MANIFESTS_PATH/05-tinkerbell/testing-machine.yaml"
 }
 
 function deploy_instance() {
-	NAME="$1"
+	local NAME="$1"
 
 	if ! incus list "$NAME" -f yaml | grep -qw name:; then
 		print_milestone "Creating the VM"

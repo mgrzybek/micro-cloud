@@ -1,5 +1,6 @@
 #! /usr/bin/env bash
 
+# shellcheck source=/dev/null
 source /etc/cloud.sh
 
 if [[ -z "$SUFFIX" ]]; then

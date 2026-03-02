@@ -63,6 +63,7 @@ EOF
 
 	apt install -y kea
 
+	# shellcheck disable=SC2153
 	cat <<EOF | tee /etc/kea/kea-dhcp4.conf
 {
     "Dhcp4": {
@@ -214,7 +215,7 @@ function install_butane() {
 		latest_tag=$(curl -v https://github.com/coreos/butane/releases/latest/download/butane 2>&1 | awk -F/ '/location/ {print $(NF-1)}')
 
 		cd /usr/local/bin
-		wget https://github.com/coreos/butane/releases/download/$latest_tag/butane-x86_64-unknown-linux-gnu
+		wget "https://github.com/coreos/butane/releases/download/$latest_tag/butane-x86_64-unknown-linux-gnu"
 		chmod +x butane-x86_64-unknown-linux-gnu
 		mv butane-x86_64-unknown-linux-gnu butane
 	fi
@@ -235,7 +236,7 @@ function install_talosctl {
 		latest_tag=$(curl -v https://github.com/siderolabs/talos/releases/latest/download/talosctl 2>&1 | awk -F/ '/location/ {print $(NF-1)}')
 
 		cd /usr/local/bin
-		wget https://github.com/siderolabs/talos/releases/download/$latest_tag/talosctl-linux-amd64
+		wget "https://github.com/siderolabs/talos/releases/download/$latest_tag/talosctl-linux-amd64"
 		mv talosctl-linux-amd64 talosctl
 		chmod +x talosctl
 	fi
@@ -262,6 +263,7 @@ function prepare() {
 		return 1
 	fi
 
+	# shellcheck source=/dev/null
 	source "$CLOUD_CONFIG"
 
 	if [[ -z "$SERVER_ADDR" ]]; then
@@ -305,7 +307,7 @@ function prepare_matchbox_ipxe() {
 		git clone https://github.com/ipxe/ipxe.git
 	fi
 	cd ipxe/src
-	make -j$(nproc) bin-x86_64-efi/ipxe.efi
+	make -j"$(nproc)" bin-x86_64-efi/ipxe.efi
 	cp bin-x86_64-efi/ipxe.efi /var/lib/matchbox/assets/ipxe.efi
 
 	echo
@@ -343,8 +345,10 @@ function prepare_matchbox_talos() {
 	cd $assets/talos
 
 	if [ -f talos.conf ]; then
+		# shellcheck source=/dev/null
 		source talos.conf
 
+		# shellcheck disable=SC2153
 		if [[ ! "$VERSION" == "$TALOS_VERSION" ]]; then
 			rm -f kerned-amd64 initramfs-amd64.xz
 		fi
@@ -411,6 +415,11 @@ function prepare_matchbox_flatcar() {
 	base_url=https://flatcar.cdn.cncf.io/stable/amd64-usr/current
 	version=$(curl -s $base_url/version.txt | awk -F= '/FLATCAR_VERSION=/ {print $2}')
 
+	if [ -z "$version" ]; then
+		echo "Cannot find flatcar version from $base_url/version.txt"
+		return 1
+	fi
+
 	assets=/var/lib/matchbox/assets/flatcar
 	groups=/var/lib/matchbox/groups
 	profiles=/var/lib/matchbox/profiles
@@ -423,19 +432,20 @@ function prepare_matchbox_flatcar() {
 	echo
 
 	cd "$assets"
-	mkdir -p "$assets/$version"
-	if [[ ! -e current ]]; then
+	if [ ! -d "$version" ]; then
+		rm -f current
+		mkdir -p "$assets/$version"
 		ln -s "$version" current
-	fi
 
-	cd "$assets/$version"
-	download_if_needed "$base_url" "version.txt"
-	download_if_needed "$base_url" "flatcar_production_pxe.vmlinuz"
-	download_if_needed "$base_url" "flatcar_production_pxe.vmlinuz.sig"
-	download_if_needed "$base_url" "flatcar_production_pxe_image.cpio.gz"
-	download_if_needed "$base_url" "flatcar_production_pxe_image.cpio.gz.sig"
-	download_if_needed "$base_url" "flatcar_production_image.bin.bz2"
-	download_if_needed "$base_url" "flatcar_production_image.bin.bz2.sig"
+		cd "$assets/$version"
+		download_if_needed "$base_url" "version.txt"
+		download_if_needed "$base_url" "flatcar_production_pxe.vmlinuz"
+		download_if_needed "$base_url" "flatcar_production_pxe.vmlinuz.sig"
+		download_if_needed "$base_url" "flatcar_production_pxe_image.cpio.gz"
+		download_if_needed "$base_url" "flatcar_production_pxe_image.cpio.gz.sig"
+		download_if_needed "$base_url" "flatcar_production_image.bin.bz2"
+		download_if_needed "$base_url" "flatcar_production_image.bin.bz2.sig"
+	fi
 
 	echo "✔ Checking binaries"
 	find $assets

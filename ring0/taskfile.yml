@@ -62,3 +62,10 @@ tasks:
       - Are you sure?
     dir: '{{.USER_WORKING_DIR}}/dist'
     cmd: rm -rf *
+
+##
+## Day 2 operations
+##
+  update-flatcar-repo:
+    desc: Download the latest version of Flatcar Linux artifacts and set the current symlink
+    cmd: cat ./core-services/bootstrap/update-flatcar-repo.sh | incus exec bootstrap bash --

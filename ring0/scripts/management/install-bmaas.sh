@@ -1,51 +1,58 @@
 #! /usr/bin/env bash
 
-if [[ -z "$BMAAS_NAMESPACE" ]]; then
+set -euo pipefail
+
+if [[ -z "${BMAAS_NAMESPACE:-}" ]]; then
 	echo "BMAAS_NAMESPACE must be defined"
 	return 1
 fi
 
-if [[ -z "$BUFFER" ]]; then
+if [[ -z "${BUFFER:-}" ]]; then
 	echo "BUFFER must be defined"
 	return 1
 fi
 
-if [[ -z "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" ]]; then
+if [[ -z "${INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR:-}" ]]; then
 	echo "INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR must be defined"
 	return 1
 fi
 
-if [[ -z "$PKI_ORG" ]]; then
+if [[ -z "${PKI_ORG:-}" ]]; then
 	echo "PKI_ORG must be defined"
-	exit 1
+	return 1
 fi
 
-if [[ -z "$TS_SUFFIX" ]]; then
+if [[ -z "${TS_SUFFIX:-}" ]]; then
 	echo "TS_SUFFIX must be defined"
 	return 1
 fi
 
-if [[ -z "$DNS_IP" ]]; then
+if [[ -z "${DNS_IP:-}" ]]; then
 	echo "DNS_IP must be defined"
 	return 1
 fi
 
-if [[ -z "$HOOKOS_IP" ]]; then
+if [[ -z "${HOOKOS_IP:-}" ]]; then
 	echo "HOOKOS_IP must be defined"
 	return 1
 fi
 
-if [[ -z "$REGISTRY_IP" ]]; then
+if [[ -z "${REGISTRY_IP:-}" ]]; then
 	echo "REGISTRY_IP must be defined"
 	return 1
 fi
 
-if [[ -z "$TINKERBELL_IP" ]]; then
+if [[ -z "${TINKERBELL_IP:-}" ]]; then
 	echo "TINKERBELL_IP must be defined"
 	return 1
 fi
 
 function build_hook() {
+	if ! incus list -f json | jq -e '.[] | select(.name=="forge" and .status=="Running")' >/dev/null; then
+		echo "ERROR: forge instance is not running" >&2
+		return 1
+	fi
+
 	print_milestone "Building tinkerbell hookos"
 
 	cat <<EOF | incus exec -t forge -- bash
@@ -80,8 +87,10 @@ EOF
 function is_hook_synced() {
 	local result=1
 
-	local forge_md5=$(incus exec forge -- md5sum /root/hook/out/checksum.txt | awk '{print $1}')
-	local bootstrap_md5=$(incus exec bootstrap -- md5sum /var/lib/matchbox/assets/tinkerbell/checksum.txt | awk '{print $1}')
+	local forge_md5
+	forge_md5="$(incus exec forge -- md5sum /root/hook/out/checksum.txt | awk '{print $1}')"
+	local bootstrap_md5
+	bootstrap_md5="$(incus exec bootstrap -- md5sum /var/lib/matchbox/assets/tinkerbell/checksum.txt | awk '{print $1}')"
 
 	if [[ "$forge_md5" == "$bootstrap_md5" ]]; then
 		result=0
@@ -96,9 +105,9 @@ function copy_hook_to_bootstrap() {
 	incus exec bootstrap -- mkdir -p /var/lib/matchbox/assets/tinkerbell
 
 	for artifact in hook_latest-lts-x86_64.tar.gz hook_x86_64.tar.gz checksum.txt; do
-		incus file pull forge/root/hook/out/$artifact $BUFFER/$artifact
-		incus file push $BUFFER/$artifact bootstrap/var/lib/matchbox/assets/tinkerbell/$artifact
-		rm -f $BUFFER/$artifact
+		incus file pull "forge/root/hook/out/$artifact" "$BUFFER/$artifact"
+		incus file push "$BUFFER/$artifact" "bootstrap/var/lib/matchbox/assets/tinkerbell/$artifact"
+		rm -f "$BUFFER/$artifact"
 	done
 
 	print_check "Checking artifacts"
@@ -110,43 +119,51 @@ function install_tinkerbell() {
 	print_milestone "Installing tinkerbell"
 
 	# Get the iface holding the given ip addr
-	local management_services_interface=$(talosctl --talosconfig $RING0_ROOT/dist/talosconfig -n management -e management get addresses | grep $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')
+	local management_services_interface
+	management_services_interface="$(talosctl --talosconfig "$RING0_ROOT/dist/talosconfig" -n management -e management get addresses | grep "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')"
 
 	# Get the pod CIDRs to set as trusted proxies
-	local trusted_proxies=$(kubectl get nodes -o jsonpath='{.items[*].spec.podCIDR}' | tr ' ' ',')
+	local trusted_proxies
+	trusted_proxies="$(kubectl get nodes -o jsonpath='{.items[*].spec.podCIDR}' | tr ' ' ',')"
+	if [[ -z "${trusted_proxies}" ]]; then
+		echo "ERROR: no nodes found, cannot determine trusted_proxies" >&2
+		return 1
+	fi
 
 	# Specify the Tinkerbell Helm chart version, here we use the latest release.
 	local tinkerbell_chart_version=v0.19.1
 
-	local instance_bootstrap_ipaddr="$(incus list | awk '/bootstrap/ && /eth1/ {print $6}')"
+	local instance_bootstrap_ipaddr
+	instance_bootstrap_ipaddr="$(incus list | awk '/bootstrap/ && /eth1/ {print $6}')"
 
 	# Creating the helm values from template
 	jinja2 --strict \
-		-D dhcp_bind_interface=$management_services_interface \
-		-D registry_ip=$REGISTRY_IP \
-		-D bootstrap_endpoint=http://$instance_bootstrap_ipaddr:8080/assets/tinkerbell \
-		-D hookos_ip=$HOOKOS_IP \
-		-D tinkerbell_ip=$TINKERBELL_IP \
-		-D artifacts_file_server=http://$HOOKOS_IP:7173 $MANIFESTS_PATH/05-tinkerbell/values.yaml.j2 \
-		-o $RING0_ROOT/dist/tinkerbell-values.yaml
+		-D "dhcp_bind_interface=$management_services_interface" \
+		-D "registry_ip=$REGISTRY_IP" \
+		-D "bootstrap_endpoint=http://$instance_bootstrap_ipaddr:8080/assets/tinkerbell" \
+		-D "hookos_ip=$HOOKOS_IP" \
+		-D "tinkerbell_ip=$TINKERBELL_IP" \
+		-D "artifacts_file_server=http://$HOOKOS_IP:7173" \
+		"$MANIFESTS_PATH/05-tinkerbell/values.yaml.j2" \
+		-o "$RING0_ROOT/dist/tinkerbell-values.yaml"
 
 	create_namespace
 
 	helm install tinkerbell oci://ghcr.io/tinkerbell/charts/tinkerbell \
-		--version $tinkerbell_chart_version \
-		--namespace $BMAAS_NAMESPACE \
+		--version "$tinkerbell_chart_version" \
+		--namespace "$BMAAS_NAMESPACE" \
 		--set "trustedProxies={${trusted_proxies}}" \
-		--values $RING0_ROOT/dist/tinkerbell-values.yaml
-	kubectl label -n $BMAAS_NAMESPACE service hookos ring0/services="true"
+		--values "$RING0_ROOT/dist/tinkerbell-values.yaml"
+	kubectl label -n "$BMAAS_NAMESPACE" service hookos ring0/services="true"
 
 	# TODO: publish bundle.crt
-	ls $RING0_ROOT/dist/bundle.crt
+	ls "$RING0_ROOT/dist/bundle.crt"
 
 	print_check "Checking the deployment"
-	if kubectl -n $BMAAS_NAMESPACE wait --timeout=600s --for=condition=Available deployment/hookos; then
+	if kubectl -n "$BMAAS_NAMESPACE" wait --timeout=600s --for=condition=Available deployment/hookos; then
 		echo "hookos: OK"
 	fi
-	if kubectl -n $BMAAS_NAMESPACE wait --for=condition=Available deployment/tinkerbell; then
+	if kubectl -n "$BMAAS_NAMESPACE" wait --for=condition=Available deployment/tinkerbell; then
 		echo "tinkerbell: OK"
 	fi
 	echo
@@ -162,12 +179,12 @@ function install_zot() {
 		helm repo add project-zot http://zotregistry.dev/helm-charts
 		helm repo update
 	fi
-	helm install zot project-zot/zot --namespace $BMAAS_NAMESPACE --values $MANIFESTS_PATH/05-zot/values.yaml
+	helm install zot project-zot/zot --namespace "$BMAAS_NAMESPACE" --values "$MANIFESTS_PATH/05-zot/values.yaml"
 
 	install_registry_api_gateway
 
 	print_check "Checking the deployment"
-	if kubectl -n $BMAAS_NAMESPACE wait --for=condition=Ready --timeout=600s pod/zot-0; then
+	if kubectl -n "$BMAAS_NAMESPACE" wait --for=condition=Ready --timeout=600s pod/zot-0; then
 		echo "zot: OK"
 	fi
 	echo
@@ -175,61 +192,64 @@ function install_zot() {
 
 function create_namespace() {
 	# Creating privileged namespace
-	if ! kubectl get ns $BMAAS_NAMESPACE 2>&1 >/dev/null; then
-		kubectl create ns $BMAAS_NAMESPACE
-		kubectl annotate ns $BMAAS_NAMESPACE pod-security.kubernetes.io/enforce=privileged
+	if ! kubectl get ns "$BMAAS_NAMESPACE" >/dev/null 2>&1; then
+		kubectl create ns "$BMAAS_NAMESPACE"
+		kubectl annotate ns "$BMAAS_NAMESPACE" pod-security.kubernetes.io/enforce=privileged
 	fi
 }
 
 function install_registry_api_gateway() {
 	print_milestone "Installing the api gateway used by the registry"
 
-	local dns_resolver="$(kubectl get svc -n kube-system | awk '/kube-dns/ {print $3}')"
+	local dns_resolver
+	dns_resolver="$(kubectl get svc -n kube-system | awk '/kube-dns/ {print $3}')"
 
-	if ! tailscale status | grep -qw management; then
+	if ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="registry")' >/dev/null 2>&1; then
 		print_step "First let's create the service without certificate to get the tailnet IP address"
 		jinja2 --strict \
-			-D namespace=$BMAAS_NAMESPACE \
-			-D pki_org="$PKI_ORG" \
-			-D ts_suffix="$TS_SUFFIX" \
-			-D tailscale_ip_address="" \
-			-D external_ip="$REGISTRY_IP" \
-			-D dns_resolver="$dns_resolver" \
-			$MANIFESTS_PATH/05-zot/api-gateway.yaml.j2 \
-			-o $RING0_ROOT/dist/registry-api-gateway.yaml
-		kubectl apply --wait -f $RING0_ROOT/dist/registry-api-gateway.yaml
+			-D "namespace=$BMAAS_NAMESPACE" \
+			-D "pki_org=$PKI_ORG" \
+			-D "ts_suffix=$TS_SUFFIX" \
+			-D "tailscale_ip_address=" \
+			-D "external_ip=$REGISTRY_IP" \
+			-D "dns_resolver=$dns_resolver" \
+			"$MANIFESTS_PATH/05-zot/api-gateway.yaml.j2" \
+			-o "$RING0_ROOT/dist/registry-api-gateway.yaml"
+		kubectl apply --wait -f "$RING0_ROOT/dist/registry-api-gateway.yaml"
 
 		print_step "Then, get the tailnet IP address, create the certificates and configure the HTTPS endpoints"
-		while ! tailscale status | grep -qw registry; do
+		while ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="registry")' >/dev/null 2>&1; do
 			sleep 5
 		done
 	fi
 
-	local tailscale_ip_address="$(tailscale status | awk '/registry/ {print $1}')"
+	local tailscale_ip_address
+	tailscale_ip_address="$(tailscale status | awk '/registry/ {print $1}')"
 
 	jinja2 --strict \
-		-D namespace=$BMAAS_NAMESPACE \
-		-D pki_org="$PKI_ORG" \
-		-D ts_suffix="$TS_SUFFIX" \
-		-D tailscale_ip_address="$tailscale_ip_address" \
-		-D external_ip="$REGISTRY_IP" \
-		-D dns_resolver="$dns_resolver" \
-		$MANIFESTS_PATH/05-zot/api-gateway.yaml.j2 \
-		-o $RING0_ROOT/dist/registry-api-gateway.yaml
-	kubectl apply --wait -f $RING0_ROOT/dist/registry-api-gateway.yaml
+		-D "namespace=$BMAAS_NAMESPACE" \
+		-D "pki_org=$PKI_ORG" \
+		-D "ts_suffix=$TS_SUFFIX" \
+		-D "tailscale_ip_address=$tailscale_ip_address" \
+		-D "external_ip=$REGISTRY_IP" \
+		-D "dns_resolver=$dns_resolver" \
+		"$MANIFESTS_PATH/05-zot/api-gateway.yaml.j2" \
+		-o "$RING0_ROOT/dist/registry-api-gateway.yaml"
+	kubectl apply --wait -f "$RING0_ROOT/dist/registry-api-gateway.yaml"
 }
 
 function populate_zot() {
 	print_milestone "Copying tinkerbell actions into the registry"
 
-	for image in $(yq '.oci[]' $MANIFESTS_PATH/05-tinkerbell/registry.yaml); do
-		local new_name=$(echo $image | awk '{gsub("^[a-z.]+/","");print}')
+	for image in $(yq '.oci[]' "$MANIFESTS_PATH/05-tinkerbell/registry.yaml"); do
+		local new_name
+		new_name="$(echo "$image" | awk '{gsub("^[a-z.]+/","");print}')"
 		local source="docker://$image"
 		local destination="docker://registry.$TS_SUFFIX:443/$new_name"
 
 		print_step "Copying $source to $destination"
 
-		skopeo copy --dest-tls-verify=false --override-arch=amd64 --override-os=linux $source $destination
+		skopeo copy --dest-tls-verify=false --override-arch=amd64 --override-os=linux "$source" "$destination"
 	done
 }
 
@@ -239,19 +259,19 @@ function create_coredns_oci() {
 	local image_name=coredns
 	local image_build_commands="nix-build /var/build/$image_name.nix && cat result > /var/build/$image_name.tar.gz"
 
-	mkdir -p $RING0_ROOT/dist
+	mkdir -p "$RING0_ROOT/dist"
 
-	if [ ! -f $RING0_ROOT/dist/$image_name.tar.gz ]; then
+	if [[ ! -f "$RING0_ROOT/dist/$image_name.tar.gz" ]]; then
 		print_step "Building the image"
 
-		incus file push $RING0_ROOT/core-services/forge/$image_name.nix forge/root/
+		incus file push "$RING0_ROOT/core-services/forge/$image_name.nix" forge/root/
 		incus exec forge -- docker pull nixos/nix
 		incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "$image_build_commands"
-		incus file pull forge/root/$image_name.tar.gz $RING0_ROOT/dist/
+		incus file pull "forge/root/$image_name.tar.gz" "$RING0_ROOT/dist/"
 	fi
 
 	print_check "Checking OCI image presence"
-	ls -lh $RING0_ROOT/dist/$image_name.tar.gz
+	ls -lh "$RING0_ROOT/dist/$image_name.tar.gz"
 }
 
 function push_coredns_oci() {
@@ -259,14 +279,14 @@ function push_coredns_oci() {
 
 	local image_name=coredns
 
-	if [ ! -f $RING0_ROOT/dist/$image_name.tar.gz ]; then
+	if [[ ! -f "$RING0_ROOT/dist/$image_name.tar.gz" ]]; then
 		create_coredns_oci
 	fi
 
 	print_step "Push the image"
 	skopeo copy \
 		--dest-tls-verify=false --override-arch=amd64 --override-os=linux \
-		docker-archive:$RING0_ROOT/dist/$image_name.tar.gz docker://registry.$TS_SUFFIX:443/$image_name:latest
+		"docker-archive:$RING0_ROOT/dist/$image_name.tar.gz" "docker://registry.$TS_SUFFIX:443/$image_name:latest"
 }
 
 function install_coredns() {
@@ -276,53 +296,59 @@ function install_coredns() {
 
 	local coredns_netbox_token=""
 
-	if [ -z "$COREDNS_NETBOX_TOKEN" ]; then
-		coredns_netbox_token="$(cat $RING0_ROOT/dist/coredns.token)"
+	if [[ -z "${COREDNS_NETBOX_TOKEN:-}" ]]; then
+		coredns_netbox_token="$(cat "$RING0_ROOT/dist/coredns.token")"
 	else
 		coredns_netbox_token="$COREDNS_NETBOX_TOKEN"
 	fi
 
-	if ! echo -n $coredns_netbox_token | wc -c | awk '$1 == 40 {print "ok"}' | grep -q ok; then
+	if ! echo -n "$coredns_netbox_token" | wc -c | awk '$1 == 40 {print "ok"}' | grep -q ok; then
 		echo "No valid Netbox token found. '$coredns_netbox_token' is not 40-character long."
 		return 1
 	fi
 
 	print_step "Creating coredns.yaml"
 	jinja2 --strict \
-		-D namespace=$BMAAS_NAMESPACE \
-		-D coredns_netbox_token=$coredns_netbox_token \
-		-D coredns_ip=$DNS_IP \
-		-D ts_suffix=$TS_SUFFIX \
-		$MANIFESTS_PATH/05-coredns/coredns.yaml.j2 \
-		-o $RING0_ROOT/dist/coredns.yaml
+		-D "namespace=$BMAAS_NAMESPACE" \
+		-D "coredns_netbox_token=$coredns_netbox_token" \
+		-D "coredns_ip=$DNS_IP" \
+		-D "ts_suffix=$TS_SUFFIX" \
+		"$MANIFESTS_PATH/05-coredns/coredns.yaml.j2" \
+		-o "$RING0_ROOT/dist/coredns.yaml"
 
 	print_step "Installing coredns"
-	kubectl apply --wait --namespace $BMAAS_NAMESPACE -f $RING0_ROOT/dist/coredns.yaml
+	kubectl apply --wait --namespace "$BMAAS_NAMESPACE" -f "$RING0_ROOT/dist/coredns.yaml"
 }
 
 function create_announcement_configuration() {
 	print_milestone "Create Cilium L2 announcement"
 
-	local management_services_interface=$(talosctl --talosconfig $RING0_ROOT/dist/talosconfig -n management -e management get addresses | grep $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')
+	local management_services_interface
+	management_services_interface="$(talosctl --talosconfig "$RING0_ROOT/dist/talosconfig" -n management -e management get addresses | grep "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')"
 
 	jinja2 --strict \
-		-D dns_ip=$DNS_IP \
-		-D hookos_ip=$HOOKOS_IP \
-		-D registry_ip=$REGISTRY_IP \
-		-D tinkerbell_ip=$TINKERBELL_IP \
-		-D announcement_interface=$management_services_interface \
-		$MANIFESTS_PATH/01-cilium/l2-announcement.yaml.j2 \
-		-o $RING0_ROOT/dist/l2-announcement.yaml
-	kubectl apply -f $RING0_ROOT/dist/l2-announcement.yaml
+		-D "dns_ip=$DNS_IP" \
+		-D "hookos_ip=$HOOKOS_IP" \
+		-D "registry_ip=$REGISTRY_IP" \
+		-D "tinkerbell_ip=$TINKERBELL_IP" \
+		-D "announcement_interface=$management_services_interface" \
+		"$MANIFESTS_PATH/01-cilium/l2-announcement.yaml.j2" \
+		-o "$RING0_ROOT/dist/l2-announcement.yaml"
+	kubectl apply -f "$RING0_ROOT/dist/l2-announcement.yaml"
 }
 
 function install_kamaji() {
 	print_milestone "Installing kamaji"
 
-	helm upgrade --install kamaji-crds clastix/kamaji-crds --namespace kamaji-system
+	kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_datastores.yaml
+	kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_tenantcontrolplanes.yaml --server-side
+
+	kubectl apply -f "$MANIFESTS_PATH/05-kamaji/namespace.yaml"
+
+	#helm upgrade --install kamaji-crds clastix/kamaji-crds --namespace kamaji-system
 	helm upgrade --install kamaji-etcd clastix/kamaji-etcd --namespace kamaji-system --set replicas=1 --set datastore.name=microcloud
 
-	kubectl apply -f $MANIFESTS_PATH/05-kamaji/
+	kubectl apply -f "$MANIFESTS_PATH/05-kamaji/"
 	kubectl wait -n kamaji-system --for=condition=Available deployment/kamaji --timeout=600s
 }
 

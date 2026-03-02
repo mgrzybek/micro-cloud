@@ -1,39 +1,40 @@
 #! /usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 INSTANCE=pki
 PKI_ROOT=/var/lib/pki
 
-RING0_ROOT=$(find $PWD -type f | grep ring0 | head -n1 | sed 's,ring0.*,ring0,')
+RING0_ROOT="$(find "$PWD" -type d -name ring0 | head -n1)"
 
 ################################################################################
 # External libraries
-source $RING0_ROOT/scripts/common.sh
+# shellcheck source=/dev/null
+source "$RING0_ROOT/scripts/common.sh"
 
 ################################################################################
 # Testing variables
-if [[ -z "$PKI_COUNTRY" ]]; then
+if [[ -z "${PKI_COUNTRY:-}" ]]; then
 	echo "PKI_COUNTRY must be defined"
 	exit 1
 fi
 
-if [[ -z "$PKI_LOCATION" ]]; then
+if [[ -z "${PKI_LOCATION:-}" ]]; then
 	echo "PKI_LOCATION must be defined"
 	exit 1
 fi
 
-if [[ -z "$PKI_ORG" ]]; then
+if [[ -z "${PKI_ORG:-}" ]]; then
 	echo "PKI_ORG must be defined"
 	exit 1
 fi
 
-if [[ -z "$PKI_ORG_UNIT" ]]; then
+if [[ -z "${PKI_ORG_UNIT:-}" ]]; then
 	echo "PKI_ORG_UNIT must be defined"
 	exit 1
 fi
 
-if [[ -z "$PKI_STATE" ]]; then
+if [[ -z "${PKI_STATE:-}" ]]; then
 	echo "PKI_STATE must be defined"
 	exit 1
 fi
@@ -54,7 +55,8 @@ function main() {
 }
 
 function prepare() {
-	export SUFFIX=$(tailscale dns status | awk '/MagicDNS:/ {gsub(")","") ; print $NF}')
+	export SUFFIX
+	SUFFIX="$(tailscale dns status | awk '/MagicDNS:/ {gsub(")","") ; print $NF}')"
 
 	if [[ -z "$SUFFIX" ]]; then
 		echo "Error getting Tailscale's SUFFIX"
@@ -66,10 +68,10 @@ function prepare() {
 function create_instance() {
 	print_milestone "Deploying the PKI"
 
-	incus list $INSTANCE -f yaml | grep -q name: || incus launch images:debian/12 $INSTANCE
+	incus list "$INSTANCE" -f yaml | grep -q "name:" || incus launch images:debian/12 "$INSTANCE"
 
-	echo "echo SUFFIX=$SUFFIX | tee /etc/cloud.sh" | incus exec $INSTANCE -- bash
-	incus exec $INSTANCE -- bash <$RING0_ROOT/core-services/$INSTANCE/debian-$INSTANCE-cloud-init.sh
+	echo "echo SUFFIX=$SUFFIX | tee /etc/cloud.sh" | incus exec "$INSTANCE" -- bash
+	incus exec "$INSTANCE" -- bash <"$RING0_ROOT/core-services/$INSTANCE/debian-$INSTANCE-cloud-init.sh"
 
 	print_check "The PKI instance is ready to be configured"
 }
@@ -123,7 +125,8 @@ EOF
 function create_ca() {
 	print_milestone "Configuring the PKI"
 
-	result=$(incus exec pki -- find $PKI_ROOT/files/intermediate/bundle.crt)
+	local result
+	result="$(incus exec pki -- find "$PKI_ROOT/files/intermediate/bundle.crt" 2>/dev/null || true)"
 
 	if [[ -z "$result" ]]; then
 		print_milestone "Sending files to the PKI instance"
@@ -138,16 +141,17 @@ function create_ca() {
 			return 1
 		fi
 
-		BUFFER=$(mktemp)
-		incus exec pki -- mkdir -p $PKI_ROOT
+		local BUFFER
+		BUFFER="$(mktemp)"
+		# shellcheck disable=SC2064
+		trap "rm -f '${BUFFER}'" RETURN
 
-		cd $RING0_ROOT/core-services/pki
-		tar cvf $BUFFER .
-		cd -
+		incus exec pki -- mkdir -p "$PKI_ROOT"
 
-		incus file push $BUFFER pki$PKI_ROOT/pki.tar
+		(cd "$RING0_ROOT/core-services/pki" && tar cvf "$BUFFER" .)
+
+		incus file push "$BUFFER" "pki$PKI_ROOT/pki.tar"
 		echo "cd $PKI_ROOT && tar xf pki.tar" | incus exec pki -- bash
-		rm -f $BUFFER
 
 		print_milestone "CA fullchain"
 
@@ -160,23 +164,24 @@ function create_ca() {
 	print_milestone "Getting the intermediate CA"
 
 	mkdir -p dist
-	echo "cat $PKI_ROOT/files/intermediate/bundle.crt" | incus exec pki -- bash >$RING0_ROOT/dist/bundle.crt
-	find $RING0_ROOT/dist/bundle.crt
+	echo "cat $PKI_ROOT/files/intermediate/bundle.crt" | incus exec pki -- bash >"$RING0_ROOT/dist/bundle.crt"
+	find "$RING0_ROOT/dist/bundle.crt"
 }
 
 function start_multirootca() {
 	print_milestone "Create the auth key for the webservice"
 
+	local auth_key
 	if [[ ! -f "$RING0_ROOT/dist/auth.key" ]]; then
-		auth_key=$(openssl rand -hex 16)
-		echo -n $auth_key >"$RING0_ROOT/dist/auth.key"
+		auth_key="$(openssl rand -hex 16)"
+		echo -n "$auth_key" >"$RING0_ROOT/dist/auth.key"
 	else
-		auth_key=$(cat "$RING0_ROOT/dist/auth.key")
+		auth_key="$(cat "$RING0_ROOT/dist/auth.key")"
 	fi
 
 	print_milestone "Configuring multirootca"
 
-	cat <<EOF >$RING0_ROOT/dist/config.json
+	cat <<EOF >"$RING0_ROOT/dist/config.json"
 {
     "signing": {
         "default": {
@@ -207,22 +212,23 @@ function start_multirootca() {
 }
 EOF
 
-	incus file push $RING0_ROOT/dist/config.json pki$PKI_ROOT/files/config/config.json
+	incus file push "$RING0_ROOT/dist/config.json" "pki$PKI_ROOT/files/config/config.json"
 
-	echo "systemctl enable multirootca.service" | incus exec $INSTANCE -- bash
-	incus restart $INSTANCE
+	echo "systemctl enable multirootca.service" | incus exec "$INSTANCE" -- bash
+	incus restart "$INSTANCE"
 
 	print_check "Checking multirootca status"
 	sleep 5
-	echo "systemctl status multirootca.service" | incus exec $INSTANCE -- bash
+	echo "systemctl status multirootca.service" | incus exec "$INSTANCE" -- bash
 }
 
 function create_pki_csr() {
 	print_milestone "Creating the CSR profile for $INSTANCE.$SUFFIX"
 
-	hosts=$(incus list | awk "/$INSTANCE/ {print \$6}")
+	local hosts
+	hosts="$(incus list | awk "/$INSTANCE/ {print \$6}")"
 
-	cat <<EOF >$RING0_ROOT/dist/$INSTANCE.$SUFFIX-csr.json
+	cat <<EOF >"$RING0_ROOT/dist/$INSTANCE.$SUFFIX-csr.json"
 {
   "CN": "$INSTANCE.$SUFFIX",
   "hosts": [
@@ -239,13 +245,13 @@ function create_pki_csr() {
   ]
 }
 EOF
-	incus file push $RING0_ROOT/dist/$INSTANCE.$SUFFIX-csr.json pki$PKI_ROOT/files/certificates/$INSTANCE.$SUFFIX.csr.json
+	incus file push "$RING0_ROOT/dist/$INSTANCE.$SUFFIX-csr.json" "pki$PKI_ROOT/files/certificates/$INSTANCE.$SUFFIX.csr.json"
 }
 
 function create_certificates() {
 	print_milestone "Creating certificates"
 
-	echo "$PKI_ROOT/create-certificates.sh $SUFFIX" | incus exec $INSTANCE -- bash
+	echo "$PKI_ROOT/create-certificates.sh $SUFFIX" | incus exec "$INSTANCE" -- bash
 }
 
 main "$@"

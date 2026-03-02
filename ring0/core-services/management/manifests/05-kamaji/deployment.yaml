@@ -41,7 +41,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.serviceAccountName
-          image: "clastix/kamaji:latest"
+          #image: "clastix/kamaji:edge-26.2.5"
+          image: "clastix/kamaji:edge-24.12.1"
           imagePullPolicy: Always
           livenessProbe:
             httpGet:

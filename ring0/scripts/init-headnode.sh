@@ -1,6 +1,6 @@
 #! /usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 function install_tailscale() {
 	echo "#####################"
@@ -36,14 +36,15 @@ function install_incus() {
 	echo "👷 Installing Incus"
 	echo
 
-	TAILSCALE_IPADDR=$(tailscale status | grep $HOSTNAME | awk '{print $1}')
+	local TAILSCALE_IPADDR
+	TAILSCALE_IPADDR="$(tailscale status | grep "$HOSTNAME" | awk '{print $1}')"
 
 	sudo apt -y install incus
 	sudo incus admin init
-	sudo adduser $USER incus-admin
+	sudo adduser "$USER" incus-admin
 	newgrp incus-admin
 
-	incus config set core.https_address $TAILSCALE_IPADDR
+	incus config set core.https_address "$TAILSCALE_IPADDR"
 
 	echo
 	echo "✔ Incus ready"
