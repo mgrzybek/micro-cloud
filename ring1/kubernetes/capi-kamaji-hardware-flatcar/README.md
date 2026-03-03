@@ -14,6 +14,16 @@ task: Available tasks for this project:
 * create-capi-hardware:         Create the Hardware cluster using CAPI and CAPT
 ```
 
+```mermaid
+graph LR
+    Cluster --> KCP[KamajiControlPlane]
+    Cluster --> TC[TinkerbellCluster]
+    MD[MachineDeployment] --> TMT[TinkerbellMachineTemplate]
+    MD --> KCT[KubeadmConfigTemplate]
+    TMT --> HW[Hardware Tinkerbell\nmanaged by machinecfg]
+    HW -->|PXE + Ignition| Node[Flatcar node]
+```
+
 ## Required environment variables
 
 | Variable | Description |
