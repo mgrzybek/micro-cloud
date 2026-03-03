@@ -65,6 +65,35 @@ tasks:
     cmds:
       - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
   #############################################################################
+  # coredns
+  #
+  create-coredns-oci:
+    desc: Create the coredns OCI image
+    vars:
+      image_build_commands: nix-build /var/build/coredns.nix ; cat result > /var/build/coredns.tar.gz
+      image_name: coredns
+    cmds:
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - incus file push {{.TASKFILE_DIR}}/coredns.nix forge/root/
+      - incus exec forge -- apt install -y skopeo
+      - incus exec forge -- docker pull nixos/nix
+      - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
+      - incus file pull forge/root/coredns.tar.gz {{.TASKFILE_DIR}}/dist/
+    generates:
+      - "{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz"
+    status:
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
+    sources:
+      - "{{.TASKFILE_DIR}}/{{.image_name}}.nix"
+  push-coredns-oci:
+    desc: Push coredns OCI to the registry
+    preconditions:
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
+    vars:
+      image_name: coredns
+    cmds:
+      - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+  #############################################################################
   # coreos-installer
   #
   create-coreos-installer-oci:
