@@ -15,6 +15,7 @@ tasks:
     vars:
       binaries:
         - butane
+        - coredns
         - flatcar-install
     cmds:
       - for: {var: binaries}
