@@ -66,6 +66,61 @@ tasks:
 ##
 ## Day 2 operations
 ##
+  update-kamaji:
+    desc: Update Kamaji CRDs and manifests from the official repository and apply to the cluster
+    vars:
+      manifests_dir: ./core-services/management/manifests/05-kamaji
+      kamaji_dir: ./dist/kamaji
+      helm_set: >-
+        --namespace kamaji-system
+        --set defaultDatastoreName=microcloud
+        --set "kamaji-etcd.deploy=false"
+        --set serviceMonitor.enabled=false
+      sed:
+        sh: if [[ "$(uname)" == "Darwin" ]]; then echo gsed; else echo sed; fi 
+    cmds:
+      - |
+        if [ ! -d {{.kamaji_dir}}/.git ]; then
+          git clone https://github.com/clastix/kamaji.git {{.kamaji_dir}}
+        fi
+      - git -C {{.kamaji_dir}} fetch --tags
+      - git -C {{.kamaji_dir}} checkout $(git -C {{.kamaji_dir}} tag | grep edge | tail -n1)
+      - helm dependency build {{.kamaji_dir}}/charts/kamaji
+      - helm template kamaji-crds {{.kamaji_dir}}/charts/kamaji-crds | yq > {{.manifests_dir}}/crds.yaml
+      - |
+        helm template kamaji {{.kamaji_dir}}/charts/kamaji {{.helm_set}} \
+          --show-only templates/rbac.yaml \
+          | grep -v "^# Source:" | yq > {{.manifests_dir}}/rbacs.yaml
+      - |
+        { helm template kamaji {{.kamaji_dir}}/charts/kamaji {{.helm_set}} \
+            --show-only templates/service_metrics.yaml
+          helm template kamaji {{.kamaji_dir}}/charts/kamaji {{.helm_set}} \
+            --show-only templates/service_webhook.yaml
+        } | grep -v "^# Source:" | yq > {{.manifests_dir}}/services.yaml
+      - |
+        { helm template kamaji {{.kamaji_dir}}/charts/kamaji {{.helm_set}} \
+            --show-only templates/certmanager_issuer.yaml
+          helm template kamaji {{.kamaji_dir}}/charts/kamaji {{.helm_set}} \
+            --show-only templates/certmanager_certificate.yaml
+        } | grep -v "^# Source:" | yq > {{.manifests_dir}}/certificate.yaml
+      - |
+        { helm template kamaji {{.kamaji_dir}}/charts/kamaji {{.helm_set}} \
+            --show-only templates/mutatingwebhookconfiguration.yaml
+          helm template kamaji {{.kamaji_dir}}/charts/kamaji {{.helm_set}} \
+            --show-only templates/validatingwebhookconfiguration.yaml
+        } | grep -v "^# Source:" | yq > {{.manifests_dir}}/webhook-configs.yaml
+      - |
+          KAMAJI_VERSION=$(git -C {{.kamaji_dir}} tag | grep edge | tail -n1)
+          {{.sed}} -i -E "s,image: .+,image: \"clastix/kamaji:$KAMAJI_VERSION\"," {{.manifests_dir}}/deployment.yaml
+
+      - kubectl apply --server-side --force-conflicts -f {{.manifests_dir}}/crds.yaml
+      - kubectl apply -f {{.manifests_dir}}/namespace.yaml
+      - kubectl apply -f {{.manifests_dir}}/rbacs.yaml
+      - kubectl apply -f {{.manifests_dir}}/services.yaml
+      - kubectl apply -f {{.manifests_dir}}/certificate.yaml
+      - kubectl apply -f {{.manifests_dir}}/webhook-configs.yaml
+      - kubectl apply -f {{.manifests_dir}}/deployment.yaml
+
   update-flatcar-repo:
     desc: Download the latest version of Flatcar Linux artifacts and set the current symlink
     cmd: cat ./core-services/bootstrap/update-flatcar-repo.sh | incus exec bootstrap bash --
