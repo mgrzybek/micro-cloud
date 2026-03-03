@@ -1,6 +1,28 @@
 apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    helm.sh/chart: kamaji-0.0.0_latest
+    app.kubernetes.io/name: kamaji
+    app.kubernetes.io/instance: kamaji
+    app.kubernetes.io/component: issuer
+    app.kubernetes.io/version: "latest"
+    app.kubernetes.io/managed-by: Helm
+  name: kamaji-selfsigned-issuer
+  namespace: kamaji-system
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
+  labels:
+    helm.sh/chart: kamaji-0.0.0_latest
+    app.kubernetes.io/name: kamaji
+    app.kubernetes.io/instance: kamaji
+    app.kubernetes.io/component: certificate
+    app.kubernetes.io/version: "latest"
+    app.kubernetes.io/managed-by: Helm
   name: kamaji-serving-cert
   namespace: kamaji-system
 spec:
@@ -11,11 +33,3 @@ spec:
     kind: Issuer
     name: kamaji-selfsigned-issuer
   secretName: kamaji-webhook-server-cert
----
-apiVersion: cert-manager.io/v1
-kind: Issuer
-metadata:
-  name: kamaji-selfsigned-issuer
-  namespace: kamaji-system
-spec:
-  selfSigned: {}
