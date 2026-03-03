@@ -19,9 +19,9 @@ tasks:
         - flatcar-install
     cmds:
       - for: {var: binaries}
-        cmd: task --dir ../../common create-{{.ITEM}}-oci
+        task: common:create-{{.ITEM}}-oci
       - for: {var: binaries}
-        cmd: task --dir ../../common push-{{.ITEM}}-oci
+        task: common:push-{{.ITEM}}-oci
       - |
         for image in $(yq '.oci[] | .source + "," + .destination' registry.yaml); do
           echo "Copying $image to $destination"
