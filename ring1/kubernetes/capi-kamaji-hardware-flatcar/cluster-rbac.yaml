@@ -1,0 +1,37 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-staff-cluster-admin
+subjects:
+  - kind: Group
+    name: "oidc:staff" # Préfixe + nom du groupe Authentik
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: cluster-admin # Rôle natif K8s
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: customer-namespace-manager
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create", "delete", "patch"]
+  - apiGroups: ["*"]
+    resources: ["*"]
+    verbs: ["*"] # Ils sont admins... mais seulement au niveau namespace
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: oidc-customers-binding
+subjects:
+  - kind: Group
+    name: "oidc:customers"
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: ClusterRole
+  name: customer-namespace-manager
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,7 @@
+variant: flatcar
+version: 1.1.0
+ignition:
+  config:
+    merge:
+      - local: system.json
+      - local: vendor-data.json

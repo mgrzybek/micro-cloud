@@ -1,0 +1,8 @@
+variant: flatcar
+version: 1.1.0
+storage:
+  files:
+    - path: /var/lib/kubeadm/kubeadm-join-config.yaml
+      overwrite: true
+      contents:
+        local: kubeadm-join-config.yaml

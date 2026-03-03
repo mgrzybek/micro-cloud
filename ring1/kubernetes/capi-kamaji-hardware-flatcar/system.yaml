@@ -1,0 +1,176 @@
+variant: flatcar
+version: 1.1.0
+kernel_arguments:
+  should_exist:
+    - flatcar.autologin
+storage:
+  directories:
+    - path: /etc/kubernetes/manifests
+    - path: /opt/sbin
+  links:
+    - target: /opt/extensions/kubernetes/kubernetes-v1.33.2-x86-64.raw
+      path: /etc/extensions/kubernetes.raw
+      hard: false
+  files:
+    # Keymap for video console
+    - path: /etc/vconsole.conf
+      mode: 0644
+      contents:
+        inline: |
+          KEYMAP=fr
+          FONT=eurlatgr
+    # NTP
+    - path: /etc/systemd/timesyncd.conf
+      mode: 0644
+      overwrite: true
+      contents:
+        inline: |
+          [Time]
+          NTP=0.fr.pool.ntp.org 1.fr.pool.ntp.org
+          FallbackNTP=ntp.ubuntu.com
+    # CA
+    - path: /etc/ssl/certs/microcloud.pem
+      overwrite: true
+      contents:
+        local: bundle.crt
+    # Reboot to netboot
+    - path: /opt/sbin/reboot-to-netboot.sh
+      overwrite: true
+      mode: 0755
+      contents:
+        inline: |
+          #!/bin/bash
+          # Get Network/PXE boot ID
+          BOOT_ID=$(efibootmgr | grep -Ei "http|network|pxe" | head -n 1 | awk '{gsub("Boot","");print $1}')
+          if [ -z "$BOOT_ID" ]; then
+              echo "Error : no boot ID found"
+              exit 1
+          fi
+
+          echo "Configuring next boot to: $BOOT_ID"
+          efibootmgr --bootnext "$BOOT_ID"
+
+          rm -f /var/run/reboot-to-netboot-required
+          reboot
+    # kubernetes
+    - path: /etc/sysupdate.kubernetes.d/kubernetes-v1.33.conf
+      overwrite: true
+      contents:
+        local: kubernetes-v1.33.conf
+    - path: /etc/sysupdate.d/noop.conf
+      overwrite: true
+      contents:
+        local: noop.conf
+    - path: /opt/extensions/kubernetes/kubernetes-v1.33.2-x86-64.raw
+      overwrite: true
+      contents:
+        local: kubernetes-v1.33.2-x86-64.raw
+    - path: /etc/containerd/config.toml
+      overwrite: true
+      contents:
+        inline: |
+          version = 2
+
+          # persistent data location
+          root = "/var/lib/containerd"
+          # runtime state information
+          state = "/run/containerd"
+          # set containerd as a subreaper on linux when it is not running as PID 1
+          subreaper = true
+          # set containerd's OOM score
+          oom_score = -999
+          disabled_plugins = []
+
+          # grpc configuration
+          [grpc]
+          address = "/run/containerd/containerd.sock"
+          # socket uid
+          uid = 0
+          # socket gid
+          gid = 0
+
+          [plugins."io.containerd.runtime.v1.linux"]
+          # shim binary name/path
+          shim = "containerd-shim"
+          # runtime binary name/path
+          runtime = "runc"
+          # do not use a shim when starting containers, saves on memory but
+          # live restore is not supported
+          no_shim = false
+
+          [plugins."io.containerd.grpc.v1.cri"]
+          # enable SELinux labeling
+          enable_selinux = true
+          # airgap registry
+          sandbox_image = "registry.ring0:5000/registry.k8s.io/pause:3.10"
+
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+          # setting runc.options unsets parent settings
+          runtime_type = "io.containerd.runc.v2"
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+          SystemdCgroup = true
+systemd:
+  units:
+    ###########################################################################
+    # Utilities
+    - name: docker.service
+      mask: true
+    - name: docker.socket
+      mask: true
+    - enabled: true
+      name: sshd.service
+    - name: systemd-sysupdate.timer
+      enabled: true
+    - name: locksmithd.service
+      mask: true
+    ###########################################################################
+    # Reboot to netboot
+    - name: reboot-to-netboot.path
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Watches the designated file to trigger a netboot
+        [Path]
+        PathExists=/var/run/reboot-to-netboot-required
+        [Install]
+        WantedBy=multi-user.target
+    - name: reboot-to-netboot.service
+      contents: |
+        [Unit]
+        Description=Starts the reboot on the netboot target
+        [Service]
+        Type=simple
+        ExecStart=/opt/sbin/reboot-to-netboot.sh
+    ###########################################################################
+    # Kubernetes
+    - name: systemd-sysupdate.service
+      dropins:
+        - name: kubernetes.conf
+          contents: |
+            [Service]
+            ExecStartPre=/usr/bin/sh -c "readlink --canonicalize /etc/extensions/kubernetes.raw > /tmp/kubernetes"
+            ExecStartPre=/usr/lib/systemd/systemd-sysupdate -C kubernetes update
+            ExecStartPost=/usr/bin/sh -c "readlink --canonicalize /etc/extensions/kubernetes.raw > /tmp/kubernetes-new"
+            ExecStartPost=/usr/bin/sh -c "if ! cmp --silent /tmp/kubernetes /tmp/kubernetes-new; then touch /run/reboot-required; fi"
+    - name: kubelet.service
+      enabled: true
+    - name: kubeadm-join.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Kubeadm join service
+        Requires=containerd.service
+        After=containerd.service
+        After=network-online.target
+        After=cloud-init.service
+        ConditionPathExists=/var/lib/kubeadm/kubeadm-join-config.yaml
+        [Service]
+        ExecStart=/usr/bin/kubeadm join --config /var/lib/kubeadm/kubeadm-join-config.yaml
+        [Install]
+        WantedBy=multi-user.target
+    - name: containerd.service
+      dropins:
+        - name: airgap.conf
+          contents: |-
+            [Service]
+            Environment=CONTAINERD_CONFIG=/etc/containerd/config.toml

@@ -1,0 +1,116 @@
+version: 3
+vars:
+  ts_suffix:
+    sh: tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}'
+includes:
+  common:
+    taskfile: ../../common/taskfile.yaml
+    flatten: false
+tasks:
+  #############################################################################
+  # Downloading and building artifacts
+  #
+  populate-registry:
+    desc: Add some OCI images into the registry
+    vars:
+      binaries:
+        - butane
+        - flatcar-install
+    cmds:
+      - for: {var: binaries}
+        cmd: task --dir ../../common create-{{.ITEM}}-oci
+      - for: {var: binaries}
+        cmd: task --dir ../../common push-{{.ITEM}}-oci
+      - |
+        for image in $(yq '.oci[] | .source + "," + .destination' registry.yaml); do
+          echo "Copying $image to $destination"
+          new_name=$(echo $image | awk -F, '{print $2}' | awk '{gsub("^[a-z.]+/","");print}')
+          source="docker://$(echo $image | awk -F, '{print $1'})"
+          destination="docker://registry.{{.ts_suffix}}:443/$new_name"
+          skopeo copy {{.skopeo_opts}} $source $destination
+          echo
+        done
+  populate-extensions:
+    desc: Add Kubernetes extension files to the assets service
+    vars:
+      files:
+        - https://extensions.flatcar.org/extensions/kubernetes/kubernetes-v1.33.conf
+        - https://extensions.flatcar.org/extensions/noop.conf
+        - https://extensions.flatcar.org/extensions/kubernetes-v1.33.2-x86-64.raw
+    cmds:
+      - incus exec bootstrap -- mkdir -p /var/lib/matchbox/assets/flatcar/extensions
+      - for: {var: files}
+        cmd: incus exec --cwd /var/lib/matchbox/assets/flatcar/extensions bootstrap -- wget -nc {{.ITEM}}
+  #############################################################################
+  # Create Hardware objects
+  #
+  create-machinecfg:
+    desc: Create machinecfg OCI image and push it into our private registry
+    cmds:
+      - task: common:create-machinecfg-oci
+      - task: common:push-machinecfg-oci
+  create-hardwares-from-netbox:
+    desc: Use machinecfg to extract data and write Hardware objects
+    preconditions:
+      - kubectl cluster-info | grep -q management.{{.ts_suffix}}
+      - test -z $NETBOX_ENDPOINT
+      - test -z $NETBOX_TOKEN
+      - test -z $SITES
+    vars:
+      machinecfg_opts_netbox: --netbox-endpoint $NETBOX_ENDPOINT --netbox-token $NETBOX_TOKEN --sites $SITES --roles cattle
+      machinecfg_opts_tinkerbell: tinkerbell hardware --embed-ignition-as-vendor-data --embedded-ignition-variant=flatcar
+    cmds:
+      - machinecfg {{.machinecfg_opts_netbox}} {{.machinecfg_opts_tinkerbell}}
+  #############################################################################
+  # Create the cluster
+  #
+  create-capi-hardware:
+    desc: Create the Hardware cluster using CAPI and CAPT
+    preconditions:
+      - kubectl cluster-info | fgrep management.{{.ts_suffix}}
+      - sh: echo $CP_HOST | grep -E "^[0-9]{2,3}(\.[0-9]{1,3}){3}$"
+        msg: Did you load your ring1 gitops variables?
+      - sh: if [ -z $NAMESPACE ]; then return 1 ; fi
+        msg: NAMESPACE should be given. Did you load your ring1 gitops variables?
+      - sh: if [ -z $CLUSTER_NAME ]; then return 1 ; fi
+        msg: CLUSTER_NAME should be given. Did you load your ring1 gitops variables?
+      - sh: if [ -z $MACHINE_POOL ]; then return 1 ; fi
+        msg: MACHINE_POOL should be given. Did you load your ring1 gitops variables?
+      - sh: if [ -z $NETBOX_TENANT ]; then return 1 ; fi
+        msg: NETBOX_TENANT should be given. Did you load your ring1 gitops variables?
+      - sh: if [ -z $NETBOX_MODEL ]; then return 1 ; fi
+        msg: NETBOX_MODEL should be given. Did you load your ring1 gitops variables?
+      - sh: if [ -z $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR ; then return 1 ; fi
+        msg: INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR should be given. Did you load your ring0 gitops variables?
+      - sh: test -f ../../../ring0/dist/talosconfig
+        msg: talosconfig missing. Did you load your rin91 gitops variables?
+      - sh: test -f ../../../ring0/dist/bundle.crt
+        msg: bundle.crt missing. Did you load your ring0 gitops variables?
+      - sh: if [ -z $OIDC_URL ]; then return 1 ; fi
+        msg: OIDC_URL should be given. Did you load your ring1 gitops variables?
+      - sh: if [ -z $OIDC_CLIENT_ID ]; then return 1 ; fi
+        msg: OIDC_CLIENT_ID should be given. Did you load your ring1 gitops variables?
+    vars:
+      announcement_interface:
+        sh: talosctl --talosconfig ../../../ring0/dist/talosconfig -n management -e management get addresses | grep $INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}'
+      butane_system_base64:
+        sh: base64 -i system.yaml
+      butane_kubeadm_base64:
+        sh: base64 -i kubeadm.yaml
+      butane_merge_base64:
+        sh: base64 -i merge.yaml
+      bundle_crt_base64:
+        sh: base64 -i ../../../ring0/dist/bundle.crt
+      jinja_opts: --strict
+      jinja_variables_common: -D namespace=$NAMESPACE -D announcement_interface={{.announcement_interface}} -D ts_suffix={{.ts_suffix}}
+      jinja_variables_ignition: -D butane_system_base64={{.butane_system_base64}} -D butane_kubeadm_base64={{.butane_kubeadm_base64}} -D butane_merge_base64={{.butane_merge_base64}} -D bundle_crt_base64={{.bundle_crt_base64}}
+      jinja_variables_cluster: -D cp_host=$CP_HOST -D cluster_name=$CLUSTER_NAME -D machine_pool=$MACHINE_POOL -D netbox_tenant=$NETBOX_TENANT -D netbox_model=$NETBOX_MODEL
+      jinja_variables_oidc: -D oidc_url=$OIDC_URL -D oidc_client_id=$OIDC_CLIENT_ID
+    cmds:
+      - if [ {{.announcement_interface | len}} -eq 0 ]; then echo "No announcement interface found. Did you load your ring0 gitops variables?" ; exit 1; fi
+      - mkdir -p dist
+      - jinja2 {{.jinja_opts}} {{.jinja_variables_common}} {{.jinja_variables_ignition}} {{.jinja_variables_cluster}} {{.jinja_variables_oidc}} -o dist/$CLUSTER_NAME.yaml capi-hardware.yaml.j2
+      - kubectl apply --wait -f dist/$CLUSTER_NAME.yaml
+      - kubectl wait --for=create secret/$CLUSTER_NAME-kubeconfig -n $NAMESPACE --timeout=300s
+      - kubectl get secret -n $NAMESPACE $CLUSTER_NAME-kubeconfig -o yaml  | yq '.data.value' | base64 -d | sed "s/$CP_HOST/$CLUSTER_NAME/" > dist/$CLUSTER_NAME.kubeconfig
+      - while ! kubectl get workflow -n $NAMESPACE | grep $CLUSTER_NAME-worker ; do sleep 10 ; done
