@@ -9,8 +9,8 @@ oci:
     destination: registry.k8s.io/kube-scheduler:v1.31.4
   - source: registry.k8s.io/kube-proxy:v1.31.4
     destination: registry.k8s.io/kube-proxy:v1.31.4
-  - source: registry.k8s.io/coredns/coredns:v1.12.1
-    destination: registry.k8s.io/coredns:v1.12.1
+  - source: registry.k8s.io/coredns/coredns:v1.13.1
+    destination: registry.k8s.io/coredns:v1.13.1
   - source: registry.k8s.io/pause:3.10
     destination: registry.k8s.io/pause:3.10
   - source: registry.k8s.io/etcd:3.5.21-0
