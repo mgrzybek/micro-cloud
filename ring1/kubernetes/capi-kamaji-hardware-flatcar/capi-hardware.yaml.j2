@@ -335,6 +335,7 @@ spec:
         nodeRegistration:
           kubeletExtraArgs:
             provider-id: PROVIDER_ID
+            feature-gates: KubeletEnsureSecretPulledImages=true,KubeletCrashLoopBackOffMax=true
 ---
 apiVersion: cilium.io/v2alpha1
 kind: CiliumLoadBalancerIPPool
