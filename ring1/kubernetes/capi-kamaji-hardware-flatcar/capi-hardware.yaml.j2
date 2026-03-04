@@ -64,6 +64,8 @@ kind: Cluster
 metadata:
   name: {{cluster_name}}
   namespace: {{namespace}}
+  labels:
+    sveltos-management: "true"
 spec:
   clusterNetwork:
     apiServerPort: 6443
