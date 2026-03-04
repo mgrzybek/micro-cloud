@@ -26,8 +26,7 @@ let
       sha256 = "sha256-XZoRN907PXNKV2iMn51H/lt8yPxhPupNfJ49Pymdm9Y=";
     };
 
-    #vendorHash = "sha256-hjlVRgW6jb8pckH0bZSopOBdeFQH/NBJfgkyE8rGNBs=";
-    vendorHash = "sha256-7iDKLBzE7K1sYIqBjHFUbz5srGQlOe+c87C5sQi0xXM=";
+    vendorHash = "sha256-gPcLkdk1JQ+j4ViMggrIaOgumNYA3nniPwv+TwnCYjs=";
     proxyVendor = true;
     doCheck = false;
 
@@ -41,7 +40,6 @@ let
       go get github.com/oz123/coredns-netbox-plugin
       go generate
     '';
-      #go mod tidy
   };
 
 in {
