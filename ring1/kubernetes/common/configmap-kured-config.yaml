@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kured-config
+  namespace: mgmt
+data:
+  values.yaml: |
+    configuration:
+      # Flatcar-specific configuration
+      rebootSentinel: /var/run/reboot-required
+      # Rebbots scheduled outside of the working hours
+      rebootDays: [mo,tu,we,th,fr]
+      startTime: "01:00"
+      endTime: "05:00"
+      timeZone: "Europe/Paris"

@@ -1,0 +1,34 @@
+apiVersion: config.projectsveltos.io/v1beta1
+kind: ClusterProfile
+metadata:
+  name: core-services
+spec:
+  clusterSelector:
+    matchLabels:
+      sveltos-management: "true"
+  continueOnConflict: false
+  continueOnError: false
+  syncMode: Continuous
+  stopMatchingBehavior: WithdrawPolicies
+  reloader: false
+  tier: 100
+  helmCharts:
+    - chartName: kyverno/kyverno
+      chartVersion: v3.3.3
+      helmChartAction: Install
+      releaseName: kyverno-latest
+      releaseNamespace: kyverno-system
+      repositoryName: kyverno
+      repositoryURL: https://kyverno.github.io/kyverno/
+    - chartName: kured/kured
+      chartVersion: 5.10.0
+      helmChartAction: Install
+      releaseName: kured
+      releaseNamespace: kube-system
+      repositoryName: kured
+      repositoryURL: https://kubereboot.github.io/charts
+      valuesFrom:
+        - kind: ConfigMap
+          name: kured-config
+          namespace: mgmt
+          optional: true
