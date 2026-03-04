@@ -3,7 +3,7 @@
 }:
 
 let
-  version = "1.11.1";
+  version = "1.13.1";
   description = "CoreDNS with Netbox support";
   homepage = "https://coredns.io";
   license = pkgs.lib.licenses.asl20;
@@ -32,7 +32,6 @@ let
 
     # Modification du fichier de configuration des plugins avant la compilation
     postPatch = ''
-      #sed -i '/forward:forward/i netbox:github.com/oz123/coredns-netbox-plugin' plugin.cfg
       echo netbox:github.com/oz123/coredns-netbox-plugin >> plugin.cfg
     '';
 
