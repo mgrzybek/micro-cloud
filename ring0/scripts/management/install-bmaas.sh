@@ -313,7 +313,7 @@ function install_coredns() {
 		-D "coredns_netbox_token=$coredns_netbox_token" \
 		-D "coredns_ip=$DNS_IP" \
 		-D "ts_suffix=$TS_SUFFIX" \
-		"$MANIFESTS_PATH/05-coredns/coredns.yaml.j2" \
+		"$MANIFESTS_PATH/05-coredns.yaml.j2" \
 		-o "$RING0_ROOT/dist/coredns.yaml"
 
 	print_step "Installing coredns"
