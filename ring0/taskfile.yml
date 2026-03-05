@@ -2,6 +2,7 @@ version: 3
 vars:
   ts_suffix:
     sh: tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}'
+  skopeo_opts: --dest-tls-verify=false --override-arch=amd64 --override-os=linux
 tasks:
 ##
 ## Bootstrap
@@ -124,3 +125,80 @@ tasks:
   update-flatcar-repo:
     desc: Download the latest version of Flatcar Linux artifacts and set the current symlink
     cmd: cat ./core-services/bootstrap/update-flatcar-repo.sh | incus exec bootstrap bash --
+
+  create-coredns-oci:
+    desc: Build the CoreDNS OCI image (with Netbox plugin) on the forge instance
+    vars:
+      nix_file: ./core-services/forge/coredns.nix
+      image_build_commands: nix-build /var/build/coredns.nix ; cat result > /var/build/coredns.tar.gz
+    cmds:
+      - mkdir -p ./dist
+      - incus file push {{.nix_file}} forge/root/coredns.nix
+      - incus exec forge -- docker pull nixos/nix
+      - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
+      - incus file pull forge/root/coredns.tar.gz ./dist/coredns.tar.gz
+    generates:
+      - ./dist/coredns.tar.gz
+    status:
+      - test -f ./dist/coredns.tar.gz
+    sources:
+      - ./core-services/forge/coredns.nix
+
+  push-coredns-oci:
+    desc: Push the CoreDNS OCI image to the internal registry
+    preconditions:
+      - sh: test -f ./dist/coredns.tar.gz
+        msg: coredns.tar.gz not found — run create-coredns-oci first
+    cmds:
+      - |
+        version=$(skopeo inspect docker-archive:./dist/coredns.tar.gz | jq -r ".Labels.version")
+        skopeo copy {{.skopeo_opts}} docker-archive:./dist/coredns.tar.gz docker://registry.{{.ts_suffix}}:443/coredns:v$version
+
+  update-coredns:
+    desc: Update CoreDNS version and hashes in coredns.nix (requires VERSION env var)
+    vars:
+      nix_file: ./core-services/forge/coredns.nix
+      fake_hash: sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      sed_cmd:
+        sh: if [[ "$(uname)" == "Darwin" ]]; then echo gsed; else echo sed; fi
+    preconditions:
+      - sh: if [ -z $VERSION ]; then return 1 ; fi
+        msg: VERSION must be set (e.g. export VERSION=1.14.0)
+      - sh: |
+          current=$(awk -F'"' '/version =/ { print $2; exit }' ./core-services/forge/coredns.nix)
+          [ "$current" != "$VERSION" ]
+        msg: VERSION $VERSION is already the current version in coredns.nix
+    cmds:
+      # 1. Bump version, reset both hashes to fakeHash to trigger mismatch errors
+      - |
+        {{.sed_cmd}} -i \
+          -e 's/version = "[^"]*"/version = "'"$VERSION"'"/' \
+          -e 's|sha256 = "sha256-[^"]*"|sha256 = "{{.fake_hash}}"|' \
+          -e 's|vendorHash = "sha256-[^"]*"|vendorHash = "{{.fake_hash}}"|' \
+          {{.nix_file}}
+      # 2. Push coredns.nix to forge for first build pass
+      - incus file push {{.nix_file}} forge/root/coredns.nix
+      # 3. First pass: extract correct sha256 for the source tarball
+      - |
+        NEW_SHA256=$(incus exec forge -- \
+          docker run --privileged --volume /root:/var/build nixos/nix \
+          bash -c "nix-build /var/build/coredns.nix 2>&1 || true" \
+          | awk '/got:/ { print $NF; exit }')
+        test -n "$NEW_SHA256" \
+          || { echo "ERROR: could not extract sha256 from first build pass" >&2 ; exit 1 ; }
+        {{.sed_cmd}} -i \
+          -e 's|sha256 = "sha256-[^"]*"|sha256 = "'"$NEW_SHA256"'"|' \
+          {{.nix_file}}
+      # 4. Push updated coredns.nix for second build pass
+      - incus file push {{.nix_file}} forge/root/coredns.nix
+      # 5. Second pass: extract correct vendorHash for Go modules
+      - |
+        NEW_VENDOR_HASH=$(incus exec forge -- \
+          docker run --privileged --volume /root:/var/build nixos/nix \
+          bash -c "nix-build /var/build/coredns.nix 2>&1 || true" \
+          | awk '/got:/ { print $NF; exit }')
+        test -n "$NEW_VENDOR_HASH" \
+          || { echo "ERROR: could not extract vendorHash from second build pass" >&2 ; exit 1 ; }
+        {{.sed_cmd}} -i \
+          -e 's|vendorHash = "sha256-[^"]*"|vendorHash = "'"$NEW_VENDOR_HASH"'"|' \
+          {{.nix_file}}

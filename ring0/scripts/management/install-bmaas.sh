@@ -278,15 +278,17 @@ function push_coredns_oci() {
 	print_milestone "Pushing coredns OCI image to the internal registry"
 
 	local image_name=coredns
+	local version=""
 
 	if [[ ! -f "$RING0_ROOT/dist/$image_name.tar.gz" ]]; then
 		create_coredns_oci
 	fi
 
 	print_step "Push the image"
+	version=$(awk '/version =/ {gsub("\"|;","");print $3}' "$RING0_ROOT/core-services/forge/$image_name.nix" | head -n1)
 	skopeo copy \
 		--dest-tls-verify=false --override-arch=amd64 --override-os=linux \
-		"docker-archive:$RING0_ROOT/dist/$image_name.tar.gz" "docker://registry.$TS_SUFFIX:443/$image_name:latest"
+		"docker-archive:$RING0_ROOT/dist/$image_name.tar.gz" "docker://registry.$TS_SUFFIX:443/$image_name:v$version"
 }
 
 function install_coredns() {
@@ -294,7 +296,9 @@ function install_coredns() {
 
 	push_coredns_oci
 
+	local image_name=coredns
 	local coredns_netbox_token=""
+	local version=""
 
 	if [[ -z "${COREDNS_NETBOX_TOKEN:-}" ]]; then
 		coredns_netbox_token="$(cat "$RING0_ROOT/dist/coredns.token")"
@@ -307,12 +311,20 @@ function install_coredns() {
 		return 1
 	fi
 
+	version=$(awk '/version =/ {gsub("\"|;","");print $3}' "$RING0_ROOT/core-services/forge/$image_name.nix" | head -n1)
+
+	if [[ -z "${version:-}" ]]; then
+		echo "No valid version found for coredns"
+		return 1
+	fi
+
 	print_step "Creating coredns.yaml"
 	jinja2 --strict \
 		-D "namespace=$BMAAS_NAMESPACE" \
 		-D "coredns_netbox_token=$coredns_netbox_token" \
 		-D "coredns_ip=$DNS_IP" \
 		-D "ts_suffix=$TS_SUFFIX" \
+		-D "version=v$version" \
 		"$MANIFESTS_PATH/05-coredns.yaml.j2" \
 		-o "$RING0_ROOT/dist/coredns.yaml"
 

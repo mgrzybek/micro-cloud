@@ -129,7 +129,7 @@ spec:
       serviceAccountName: default
       containers:
       - name: "coredns"
-        image: "registry.{{ts_suffix}}:443/coredns:latest"
+        image: "registry.{{ts_suffix}}:443/coredns:{{version}}"
         imagePullPolicy: IfNotPresent
         args: [ "/bin/coredns", "-conf", "/etc/coredns/Corefile" ]
         volumeMounts:

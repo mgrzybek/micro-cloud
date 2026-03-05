@@ -3,17 +3,13 @@
 }:
 
 let
-  version = "1.11.1";
-  githubHash = "sha256-XZoRN907PXNKV2iMn51H/lt8yPxhPupNfJ49Pymdm9Y=";
-  vendorHash = "sha256-7iDKLBzE7K1sYIqBjHFUbz5srGQlOe+c87C5sQi0xXM=";
-
+  version = "1.13.1";
   description = "CoreDNS with Netbox support";
   homepage = "https://coredns.io";
   license = pkgs.lib.licenses.asl20;
 
   coredns-package = pkgs.buildGoModule rec {
     inherit version;
-    inherit vendorHash;
 
     pname = "coredns";
 
@@ -27,9 +23,10 @@ let
       owner = "coredns";
       repo = "coredns";
       rev = "v${version}";
-      sha256 = githubHash;
+      sha256 = "sha256-XZoRN907PXNKV2iMn51H/lt8yPxhPupNfJ49Pymdm9Y=";
     };
 
+    vendorHash = "sha256-gPcLkdk1JQ+j4ViMggrIaOgumNYA3nniPwv+TwnCYjs=";
     proxyVendor = true;
     doCheck = false;
 
@@ -47,12 +44,12 @@ in {
   coredns-oci = pkgs.dockerTools.buildImage {
     name = "coredns-netbox";
     tag = version;
-  
+
     copyToRoot = pkgs.buildEnv {
       name = "image-root-copy";
       paths = [
         coredns-package
-  		  pkgs.cacert
+        pkgs.cacert
       ];
     };
 
