@@ -54,12 +54,6 @@ else
 	print_check "Tinkerbell is already installed"
 fi
 
-if ! kubectl get deployment --namespace "$BMAAS_NAMESPACE" coredns >/dev/null 2>&1; then
-	install_coredns
-else
-	print_check "CoreDNS is already installed"
-fi
-
 install_kamaji
 
 install_cluster_api

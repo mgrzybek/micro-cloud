@@ -41,7 +41,48 @@ tasks:
 
   bmaas:
     desc: Deploy the BMaaS and the OCI registry using helm
-    cmd: bash ./scripts/deploy-bmaas.sh
+    cmds:
+      - bash ./scripts/deploy-bmaas.sh
+      - task: install-coredns
+
+  install-coredns:
+    desc: Install CoreDNS with Netbox plugin into the BMaaS namespace
+    deps: [push-coredns-oci]
+    vars:
+      coredns_version:
+        sh: awk -F'"' '/version =/ { print $2; exit }' ./core-services/forge/coredns.nix
+    preconditions:
+      - sh: test -n "${BMAAS_NAMESPACE:-}"
+        msg: BMAAS_NAMESPACE must be defined
+      - sh: test -n "${DNS_IP:-}"
+        msg: DNS_IP must be defined
+      - sh: test -n "{{.ts_suffix}}"
+        msg: ts_suffix could not be determined from tailscale dns status
+      - sh: test -n "{{.coredns_version}}"
+        msg: coredns version could not be determined from coredns.nix
+    status:
+      - kubectl get deployment --namespace "$BMAAS_NAMESPACE" coredns >/dev/null 2>&1
+    cmds:
+      - mkdir -p ./dist
+      - |
+        if [ -z "${COREDNS_NETBOX_TOKEN:-}" ]; then
+          coredns_netbox_token="$(cat ./dist/coredns.token)"
+        else
+          coredns_netbox_token="$COREDNS_NETBOX_TOKEN"
+        fi
+        if ! echo -n "$coredns_netbox_token" | wc -c | awk '$1 == 40 {print "ok"}' | grep -q ok; then
+          echo "No valid Netbox token found. '$coredns_netbox_token' is not 40-character long."
+          exit 1
+        fi
+        jinja2 --strict \
+          -D "namespace=$BMAAS_NAMESPACE" \
+          -D "coredns_netbox_token=$coredns_netbox_token" \
+          -D "coredns_ip=$DNS_IP" \
+          -D "ts_suffix={{.ts_suffix}}" \
+          -D "version=v{{.coredns_version}}" \
+          ./core-services/management/manifests/05-coredns.yaml.j2 \
+          -o ./dist/coredns.yaml
+      - kubectl apply --wait --namespace "$BMAAS_NAMESPACE" -f ./dist/coredns.yaml
 
 ##
 ## Dangerous tasks

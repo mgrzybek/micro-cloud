@@ -253,85 +253,6 @@ function populate_zot() {
 	done
 }
 
-function create_coredns_oci() {
-	print_milestone "Creating custom coredns OCI image"
-
-	local image_name=coredns
-	local image_build_commands="nix-build /var/build/$image_name.nix && cat result > /var/build/$image_name.tar.gz"
-
-	mkdir -p "$RING0_ROOT/dist"
-
-	if [[ ! -f "$RING0_ROOT/dist/$image_name.tar.gz" ]]; then
-		print_step "Building the image"
-
-		incus file push "$RING0_ROOT/core-services/forge/$image_name.nix" forge/root/
-		incus exec forge -- docker pull nixos/nix
-		incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "$image_build_commands"
-		incus file pull "forge/root/$image_name.tar.gz" "$RING0_ROOT/dist/"
-	fi
-
-	print_check "Checking OCI image presence"
-	ls -lh "$RING0_ROOT/dist/$image_name.tar.gz"
-}
-
-function push_coredns_oci() {
-	print_milestone "Pushing coredns OCI image to the internal registry"
-
-	local image_name=coredns
-	local version=""
-
-	if [[ ! -f "$RING0_ROOT/dist/$image_name.tar.gz" ]]; then
-		create_coredns_oci
-	fi
-
-	print_step "Push the image"
-	version=$(awk '/version =/ {gsub("\"|;","");print $3}' "$RING0_ROOT/core-services/forge/$image_name.nix" | head -n1)
-	skopeo copy \
-		--dest-tls-verify=false --override-arch=amd64 --override-os=linux \
-		"docker-archive:$RING0_ROOT/dist/$image_name.tar.gz" "docker://registry.$TS_SUFFIX:443/$image_name:v$version"
-}
-
-function install_coredns() {
-	print_milestone "Installing coredns"
-
-	push_coredns_oci
-
-	local image_name=coredns
-	local coredns_netbox_token=""
-	local version=""
-
-	if [[ -z "${COREDNS_NETBOX_TOKEN:-}" ]]; then
-		coredns_netbox_token="$(cat "$RING0_ROOT/dist/coredns.token")"
-	else
-		coredns_netbox_token="$COREDNS_NETBOX_TOKEN"
-	fi
-
-	if ! echo -n "$coredns_netbox_token" | wc -c | awk '$1 == 40 {print "ok"}' | grep -q ok; then
-		echo "No valid Netbox token found. '$coredns_netbox_token' is not 40-character long."
-		return 1
-	fi
-
-	version=$(awk '/version =/ {gsub("\"|;","");print $3}' "$RING0_ROOT/core-services/forge/$image_name.nix" | head -n1)
-
-	if [[ -z "${version:-}" ]]; then
-		echo "No valid version found for coredns"
-		return 1
-	fi
-
-	print_step "Creating coredns.yaml"
-	jinja2 --strict \
-		-D "namespace=$BMAAS_NAMESPACE" \
-		-D "coredns_netbox_token=$coredns_netbox_token" \
-		-D "coredns_ip=$DNS_IP" \
-		-D "ts_suffix=$TS_SUFFIX" \
-		-D "version=v$version" \
-		"$MANIFESTS_PATH/05-coredns.yaml.j2" \
-		-o "$RING0_ROOT/dist/coredns.yaml"
-
-	print_step "Installing coredns"
-	kubectl apply --wait --namespace "$BMAAS_NAMESPACE" -f "$RING0_ROOT/dist/coredns.yaml"
-}
-
 function create_announcement_configuration() {
 	print_milestone "Create Cilium L2 announcement"
 
@@ -352,8 +273,8 @@ function create_announcement_configuration() {
 function install_kamaji() {
 	print_milestone "Installing kamaji"
 
-	kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_datastores.yaml
-	kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_tenantcontrolplanes.yaml --server-side
+	#kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_datastores.yaml
+	#kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_tenantcontrolplanes.yaml --server-side
 
 	kubectl apply -f "$MANIFESTS_PATH/05-kamaji/namespace.yaml"
 
