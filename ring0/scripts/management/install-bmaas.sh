@@ -273,10 +273,6 @@ function create_announcement_configuration() {
 function install_kamaji() {
 	print_milestone "Installing kamaji"
 
-	#kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_datastores.yaml
-	#kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_tenantcontrolplanes.yaml --server-side
-
-	#helm upgrade --install kamaji-crds clastix/kamaji-crds --namespace kamaji-system
 	helm upgrade --install kamaji-etcd clastix/kamaji-etcd --namespace kamaji-system --set replicas=1 --set datastore.name=microcloud
 
 	kubectl apply --server-side --force-conflicts -f "$MANIFESTS_PATH/05-kamaji/"
