@@ -276,12 +276,10 @@ function install_kamaji() {
 	#kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_datastores.yaml
 	#kubectl apply -f https://raw.githubusercontent.com/didactiklabs/fluxy/refs/heads/main/gitops/apps/kamaji/upstream/kamaji.clastix.io_tenantcontrolplanes.yaml --server-side
 
-	kubectl apply -f "$MANIFESTS_PATH/05-kamaji/namespace.yaml"
-
 	#helm upgrade --install kamaji-crds clastix/kamaji-crds --namespace kamaji-system
 	helm upgrade --install kamaji-etcd clastix/kamaji-etcd --namespace kamaji-system --set replicas=1 --set datastore.name=microcloud
 
-	kubectl apply -f "$MANIFESTS_PATH/05-kamaji/"
+	kubectl apply --server-side --force-conflicts -f "$MANIFESTS_PATH/05-kamaji/"
 	kubectl wait -n kamaji-system --for=condition=Available deployment/kamaji --timeout=600s
 }
 
@@ -295,5 +293,9 @@ providers:
   type: "InfrastructureProvider"
 EOF
 
-	clusterctl init --infrastructure tinkerbell --control-plane kamaji
+	if kubectl get deployment -n kamaji-system capi-kamaji-controller-manager >/dev/null 2>&1; then
+		print_check "Cluster API is already installed"
+	else
+		clusterctl init --infrastructure tinkerbell --control-plane kamaji
+	fi
 }
