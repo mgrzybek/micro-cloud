@@ -150,6 +150,53 @@ tasks:
     cmds:
       - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
   #############################################################################
+  # tpm2-tools
+  #
+  create-tpm2-tools-oci:
+    desc: Create the tpm2-tools tinkerbell action OCI image
+    vars:
+      image_build_commands: nix-build /var/build/tpm2-tools.nix && cat result > /var/build/tpm2-tools.tar.gz
+      image_name: tpm2-tools
+    cmds:
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - incus file push {{.TASKFILE_DIR}}/{{.image_name}}.nix forge/root/
+      - incus exec forge -- apt install -y skopeo
+      - incus exec forge -- docker pull nixos/nix
+      - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
+      - incus file pull forge/root/{{.image_name}}.tar.gz {{.TASKFILE_DIR}}/dist/
+    generates:
+      - "{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz"
+    status:
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
+    sources:
+      - "{{.TASKFILE_DIR}}/{{.image_name}}.nix"
+  push-tpm2-tools-oci:
+    desc: Push tpm2-tools OCI to the registry
+    preconditions:
+      - test -f {{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz
+    vars:
+      image_name: tpm2-tools
+    cmds:
+      - skopeo copy {{.skopeo_opts}} docker-archive:{{.TASKFILE_DIR}}/dist/{{.image_name}}.tar.gz docker://registry.{{.ts_suffix}}:443/{{.image_name}}:latest
+  #############################################################################
+  # TPM2 init template
+  #
+  create-tpm2-init-template:
+    desc: Create the TPM2 initialization Tinkerbell template
+    preconditions:
+      - sh: if [ -z $NAMESPACE ]; then return 1 ; fi
+        msg: NAMESPACE should be given. Did you load your ring1 gitops variables?
+      - sh: if [ -z $TPM2_PUBKEY_ENDPOINT ]; then return 1 ; fi
+        msg: TPM2_PUBKEY_ENDPOINT should be given (e.g. https://vault.example.com/tpm/pubkeys)
+    vars:
+      jinja_opts: --strict
+      jinja_variables_common: -D namespace=$NAMESPACE
+      jinja_variables_tpm2: -D tpm2_pubkey_endpoint=$TPM2_PUBKEY_ENDPOINT
+    cmds:
+      - mkdir -p {{.TASKFILE_DIR}}/dist
+      - jinja2 {{.jinja_opts}} {{.jinja_variables_common}} {{.jinja_variables_tpm2}} -o dist/tpm2-init-template.yaml tpm2-init-template.yaml.j2
+      - kubectl apply -f dist/tpm2-init-template.yaml
+  #############################################################################
   # Flatcar linux
   #
   create-basic-flatcar-install-template:

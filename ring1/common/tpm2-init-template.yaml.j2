@@ -1,0 +1,54 @@
+apiVersion: tinkerbell.org/v1alpha1
+kind: Template
+metadata:
+  name: tpm2-init
+  namespace: {{namespace}}
+spec:
+  data: |
+    version: '0.1'
+    name: tpm2_initialization
+    global_timeout: 600
+    tasks:
+    - name: "tpm2-init"
+      worker: "{{ '{{' }}.machine_mac}}"
+      actions:
+        - name: "Create TPM2 primary key in endorsement hierarchy"
+          image: "registry.ring0:5000/tpm2-tools:latest"
+          volumes:
+          - /statedir:/statedir
+          - /dev/tpmrm0:/dev/tpmrm0
+          timeout: 90
+          environment:
+            TPM2TOOLS_TCTI: "device:/dev/tpmrm0"
+          command:
+          - sh
+          - -c
+          - tpm2_createprimary -C e -G rsa2048 -c /statedir/primary.ctx
+
+        - name: "Export TPM2 public key as PEM"
+          image: "registry.ring0:5000/tpm2-tools:latest"
+          volumes:
+          - /statedir:/statedir
+          - /dev/tpmrm0:/dev/tpmrm0
+          timeout: 60
+          environment:
+            TPM2TOOLS_TCTI: "device:/dev/tpmrm0"
+          command:
+          - sh
+          - -c
+          - tpm2_readpublic -c /statedir/primary.ctx -f pem -o /statedir/tpm2-pubkey.pem
+
+        - name: "Push TPM2 public key to remote endpoint"
+          image: "registry.ring0:5000/tpm2-tools:latest"
+          volumes:
+          - /statedir:/statedir
+          timeout: 60
+          command:
+          - sh
+          - -c
+          - >-
+            curl -sSf -X POST
+            -H 'Content-Type: multipart/form-data'
+            -F 'mac={{ '{{' }}.machine_mac}}'
+            -F 'pubkey=@/statedir/tpm2-pubkey.pem'
+            {{tpm2_pubkey_endpoint}}
