@@ -176,7 +176,7 @@ tasks:
       - mkdir -p ./dist
       - incus file push {{.nix_file}} forge/root/coredns.nix
       - incus exec forge -- docker pull nixos/nix
-      - incus exec forge -- docker run --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
+      - incus exec forge -- docker run --rm --privileged --volume /root:/var/build nixos/nix bash -c "{{.image_build_commands}}"
       - incus file pull forge/root/coredns.tar.gz ./dist/coredns.tar.gz
     generates:
       - ./dist/coredns.tar.gz
@@ -222,7 +222,7 @@ tasks:
       # 3. First pass: extract correct sha256 for the source tarball
       - |
         NEW_SHA256=$(incus exec forge -- \
-          docker run --privileged --volume /root:/var/build nixos/nix \
+          docker run --rm --privileged --volume /root:/var/build nixos/nix \
           bash -c "nix-build /var/build/coredns.nix 2>&1 || true" \
           | awk '/got:/ { print $NF; exit }')
         test -n "$NEW_SHA256" \
@@ -235,7 +235,7 @@ tasks:
       # 5. Second pass: extract correct vendorHash for Go modules
       - |
         NEW_VENDOR_HASH=$(incus exec forge -- \
-          docker run --privileged --volume /root:/var/build nixos/nix \
+          docker run --rm --privileged --volume /root:/var/build nixos/nix \
           bash -c "nix-build /var/build/coredns.nix 2>&1 || true" \
           | awk '/got:/ { print $NF; exit }')
         test -n "$NEW_VENDOR_HASH" \
