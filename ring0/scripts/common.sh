@@ -30,7 +30,7 @@ function configure_bridge() {
 	local IFACE=$2
 	local VLAN=$3
 
-	if ! incus network list | grep -qw "$NAME"; then
+	if ! incus network info "$NAME" >/dev/null 2>&1; then
 		incus network create "$NAME" --type=bridge \
 			"bridge.external_interfaces=$IFACE.$VLAN/$IFACE/$VLAN" \
 			ipv4.address=none \
@@ -49,7 +49,8 @@ export TS_SUFFIX
 
 PKI_IPADDR="$(incus list | awk '/pki/ {print $6}')"
 export PKI_IPADDR
-export PKI_ENDPOINT="https://$PKI_IPADDR:8000"
+PKI_ENDPOINT="https://$PKI_IPADDR:8200"
+export PKI_ENDPOINT
 
 BOOTSTRAP_IPADDR="$(incus list | awk '/bootstrap/ {print $6}')"
 export BOOTSTRAP_IPADDR

@@ -57,12 +57,12 @@ Enterprise_Boundary(ring0, "Ring 0") {
         }
 
         Container_Boundary(pki, "PKI instance") {
-            Component(cfssl, "PKI", "cfssl, multirootca", "Provides certificates through webservice.")
+            Component(openbao, "PKI", "cfssl, openbao", "Provides certificates through webservice.")
         }
 
         Container_Boundary(management, "Management instance") {
             Component(tailscale, "Tailscale operator", "helm, tailscale-operator")
-            Component(issuer, "Provides certificates", "helm, cert-manager, cfssl-issuer")
+            Component(issuer, "Provides certificates", "helm, cert-manager, vault-issuer")
             Component(id, "ID Provider", "helm, authentik")
             Component(dcim, "CMDB", "helm, netbox")
             Component(deployment, "Platform deployer", "helm, kamaji, kamaji")
@@ -70,7 +70,7 @@ Enterprise_Boundary(ring0, "Ring 0") {
     }
 }
 
-Rel(cfssl, issuer, "Provides certificates")
+Rel(openbao, issuer, "Provides certificates")
 Rel(tailscale, id, "Connects to the SDN")
 Rel(tailscale, dcim, "Connects to the SDN")
 BiRel(mesh, tailscale, "Is connected")
@@ -175,17 +175,16 @@ export PKI_ORG_UNIT="CA Services"
 export PKI_STATE="IDF"
 
 cd ./ring0
-task intermediate-fullchain.pem
+task intermediate-fullchain
 
-# Both the intermediate CA bundle and the secret auth key for multirootca should be present.
+# The intermediate CA bundle should be present.
 cat dist/bundle.crt
-cat dist/auth.key
 ```
 
 ## Bootstrapping the netboot services
 
 First, we need to create the bootstrap instance and to configure it.  
-The `task bootstrap` command will set up the bootstrap instance with the network bridge, VLAN, and physical interface specified, and prepare the Talos artifacts required for deployment. Talos is a Kubernetes-native, minimal OS for managing bare metal clusters (https://talos.dev).
+The `task bootstrap` command will set up the bootstrap instance with the network bridge, VLAN, and physical interface specified, and prepare the Talos artifacts required for deployment. Talos is a Kubernetes-native, minimal OS for managing bare metal clusters (<https://talos.dev>).
 
 ```bash
 export BRIDGE_BOOTSTRAP_NAME=bootstrapbr0         # Depending on your incus configuration

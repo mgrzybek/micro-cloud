@@ -28,9 +28,8 @@ spec:
   ipAddresses:
     - {{tailscale_ip_address}}
   issuerRef:
-    name: cfssl-internal-ca
+    name: openbao-internal-ca
     kind: ClusterIssuer
-    group: cfssl-issuer.wikimedia.org
 {% endif %}
 ---
 apiVersion: cert-manager.io/v1
@@ -61,9 +60,8 @@ spec:
   ipAddresses:
     - {{external_ip}}
   issuerRef:
-    name: cfssl-internal-ca
+    name: openbao-internal-ca
     kind: ClusterIssuer
-    group: cfssl-issuer.wikimedia.org
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway

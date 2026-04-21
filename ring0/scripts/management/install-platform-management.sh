@@ -47,22 +47,14 @@ function install_cilium() {
 function install_cert_manager() {
 	print_milestone "Installing cert-manager"
 
-	local PKI_AUTH_KEY
-	PKI_AUTH_KEY="$(incus exec pki -- jq -r '.auth_keys.default.key' /var/lib/pki/files/config/config.json)"
+	local approle_role_id
+	approle_role_id="$(cat "$RING0_ROOT/dist/openbao-approle-role-id")"
 
-	cat <<EOF | yq >"$RING0_ROOT/dist/cfssl.yaml"
----
-issuers:
-  cfssl-internal-ca:
-    kind: ClusterIssuer
-    authSecretName: "cfssl-ca-secret"
-    url: "$PKI_ENDPOINT"
-    label: microcloud
-    profile: host
-    bundle: false
-    authSecret:
-      key: "$PKI_AUTH_KEY"
-EOF
+	local approle_secret_id
+	approle_secret_id="$(cat "$RING0_ROOT/dist/openbao-approle-secret-id")"
+
+	local openbao_ca_bundle
+	openbao_ca_bundle="$(base64 <"$RING0_ROOT/dist/bundle.crt" | tr -d '\n')"
 
 	helm install cert-manager jetstack/cert-manager --create-namespace --namespace cert-manager --set crds.enabled=true --set "extraArgs={--enable-gateway-api}"
 
@@ -70,12 +62,33 @@ EOF
 		kubectl create configmap internal-ca-chain --namespace=cert-manager --from-file="key=$RING0_ROOT/dist/bundle.crt"
 	fi
 
-	helm install cfssl-issuer-crds wikimedia-charts/cfssl-issuer-crds
-	helm install cfssl-issuer wikimedia-charts/cfssl-issuer --namespace cert-manager --values "$RING0_ROOT/dist/cfssl.yaml"
-	# shellcheck disable=SC2016
-	kubectl patch --namespace=cert-manager deployment cfssl-issuer \
-		-p '{"spec":{"template":{"spec":{"$setElementOrder/containers":[{"name":"cfssl-issuer"}],"containers":[{"name":"cfssl-issuer","volumeMounts":[{"mountPath":"/etc/pki/tls/certs/","name":"internal-ca-chain"}]}],"volumes":[{"configMap":{"name":"internal-ca-chain"},"name":"internal-ca-chain"}]}}}}'
-	kubectl rollout -n cert-manager restart deployment/cfssl-issuer
+	if ! kubectl get secret -n cert-manager openbao-approle >/dev/null 2>&1; then
+		kubectl create secret generic openbao-approle \
+			--namespace=cert-manager \
+			--from-literal="secretId=$approle_secret_id"
+	fi
+
+	kubectl apply -f - <<ISSUER
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: openbao-internal-ca
+spec:
+  vault:
+    path: pki_int/sign/microcloud-host
+    server: $PKI_ENDPOINT
+    caBundle: "$openbao_ca_bundle"
+    auth:
+      appRole:
+        path: approle
+        roleId: "$approle_role_id"
+        secretRef:
+          name: openbao-approle
+          key: secretId
+ISSUER
+
+	print_check "ClusterIssuer openbao-internal-ca created"
 }
 
 function install_local_path_provisioner() {
@@ -111,7 +124,7 @@ function install_database() {
 	print_milestone "Installing the database"
 
 	kubectl apply --wait -f "$MANIFESTS_PATH/02-pg-cluster.yaml"
-	kubectl wait --for=condition=Ready cluster/tooling -n platform-management --timeout=600s
+	kubectl wait --for=condition=Ready clusters.postgresql.cnpg.io/tooling -n platform-management --timeout=600s
 }
 
 function install_cmdb_api_gateway() {

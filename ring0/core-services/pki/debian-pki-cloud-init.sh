@@ -21,7 +21,11 @@ function main() {
 		install_cfssl
 	fi
 
-	configure_multirootca
+	if ! which bao; then
+		install_openbao
+	fi
+
+	configure_openbao
 
 	echo "✔ cloud-init ended successfully"
 }
@@ -31,7 +35,7 @@ function prepare() {
 	echo "👷 Preparing the environment"
 
 	apt update
-	apt -y install jq
+	apt -y install jq unzip wget
 	export HOME=/root
 	export pki=/var/lib/pki/files
 }
@@ -52,7 +56,9 @@ function install_go() {
 		cd -
 	fi
 
-	echo "export PATH=$PATH:/usr/local/go/bin" >>/etc/profile
+	if ! grep go/bin /etc/profile; then
+		echo "export PATH=$PATH:/usr/local/go/bin" >>/etc/profile
+	fi
 
 	rm -rf /tmp/go-build*
 
@@ -82,37 +88,81 @@ function install_cfssl() {
 	mkdir -p $pki/{root,intermediate,config,certificates}
 }
 
-function configure_multirootca() {
+function install_openbao() {
 	echo "#####################"
-	echo "👷 Configuring multirootca"
+	echo "👷 Installing OpenBao"
 
-	cat <<EOF >$pki/config/multiroot-profile.ini
-[microcloud]
-private = file://$pki/intermediate/intermediate-ca-key.pem
-certificate = $pki/intermediate/intermediate-ca.pem
-config = $pki/config/config.json
-EOF
+	local openbao_version
+	openbao_version="$(wget -qO- https://api.github.com/repos/openbao/openbao/releases/latest |
+		jq -r '.tag_name' | sed 's/^v//')"
 
-	cat <<EOF >/etc/systemd/system/multirootca.service
+	if [[ -z "$openbao_version" ]]; then
+		echo "Failed to fetch latest OpenBao version from GitHub API"
+		return 1
+	fi
+
+	local openbao_archive="openbao_${openbao_version}_linux_amd64.deb"
+	local openbao_url="https://github.com/openbao/openbao/releases/download/v${openbao_version}/${openbao_archive}"
+
+	if ! dpkg -l openbao | grep ii | grep "$openbao_version"; then
+		cd /tmp
+		wget "$openbao_url"
+		apt -y install "./$openbao_archive"
+		rm -f "$openbao_archive"
+	fi
+
+	echo
+	echo "✔ OpenBao installed"
+	bao version
+	echo
+}
+
+function configure_openbao() {
+	echo "#####################"
+	echo "👷 Configuring OpenBao"
+
+	chown openbao: "$pki/certificates/pki.$SUFFIX.pem" "$pki/certificates/pki.$SUFFIX-key.pem"
+
+	cat >/etc/openbao/openbao.hcl <<OPENBAO_CONFIG
+ui = false
+
+storage "file" {
+  path = "/var/lib/openbao"
+}
+
+listener "tcp" {
+  address       = "0.0.0.0:8200"
+  tls_cert_file = "$pki/certificates/pki.$SUFFIX.pem"
+  tls_key_file  = "$pki/certificates/pki.$SUFFIX-key.pem"
+}
+
+api_addr = "https://pki.$SUFFIX:8200"
+OPENBAO_CONFIG
+
+	chown openbao:openbao /etc/openbao/openbao.hcl
+
+	cat >/etc/systemd/system/openbao-unseal.service <<UNSEAL_UNIT
 [Unit]
-Description=CFSSL PKI Certificate Authority
-After=network-online.target
+Description=OpenBao auto-unseal
+Documentation=https://openbao.org/docs/
+After=openbao.service
+Requires=openbao.service
 
 [Service]
-ExecStart=/usr/local/bin/multirootca -a 0.0.0.0:8000 -l microcloud -roots $pki/config/multiroot-profile.ini -tls-cert $pki/certificates/pki.$SUFFIX.pem -tls-key $pki/certificates/pki.$SUFFIX-key.pem -loglevel 0
-Restart=on-failure
-Type=simple
+Type=oneshot
+RemainAfterExit=yes
+Environment=VAULT_ADDR=https://localhost:8200
+Environment=VAULT_CACERT=$pki/intermediate/bundle.crt
+ExecStart=/bin/bash -c '/usr/bin/bao operator unseal \$(cat /etc/openbao/unseal.key)'
 
 [Install]
 WantedBy=multi-user.target
-EOF
+UNSEAL_UNIT
+
 	systemctl daemon-reload
 
 	echo "#####################"
-	echo "✔ Checking binaries and services"
-	which cfssl
-	which multirootca
-	echo
+	echo "✔ OpenBao service units written"
 }
 
 main

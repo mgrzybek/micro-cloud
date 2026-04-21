@@ -138,7 +138,7 @@ function deploy_instance() {
 	fi
 
 	print_check "Checking instance"
-	incus info "$NAME" | yq
+	incus info "$NAME"
 }
 
 function create_talos_config() {
@@ -262,7 +262,7 @@ function bootstrap_kubernetes() {
 
 	print_check "Talos internal address is: $MANAGEMENT_IPADDR"
 
-	while ! tailscale status | grep -qw management; do
+	while ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="management")' >/dev/null 2>&1; do
 		echo "Talos address on Tailscale is not set yet. Waiting..."
 		sleep 30
 	done
@@ -315,11 +315,11 @@ function bootstrap_kubernetes() {
 }
 
 function desactivate_netboot_on_instance() {
-	print_milestone "Eject ipe iso image from $INSTANCE"
+	print_milestone "Eject ipe iso image from $NAME"
 
-	if incus config device list "$INSTANCE" | grep -q ipxe; then
+	if incus config device list "$NAME" | grep -q ipxe; then
 		incus config device delete "$NAME" ipxe
 	fi
 
-	print_check "ipxe iso image removed from $INSTANCE"
+	print_check "ipxe iso image removed from $NAME"
 }

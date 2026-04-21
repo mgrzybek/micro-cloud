@@ -38,7 +38,9 @@ function install_go() {
 			cd -
 		fi
 
-		echo "export PATH=$PATH:/usr/local/go/bin" >>/etc/profile
+		if ! grep go/bin /etc/profile; then
+			echo "export PATH=$PATH:/usr/local/go/bin" >>/etc/profile
+		fi
 
 		rm -rf /tmp/go-build*
 	fi

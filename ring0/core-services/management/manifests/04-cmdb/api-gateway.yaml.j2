@@ -27,9 +27,8 @@ spec:
   ipAddresses:
     - {{ip_address}}
   issuerRef:
-    name: cfssl-internal-ca
+    name: openbao-internal-ca
     kind: ClusterIssuer
-    group: cfssl-issuer.wikimedia.org
 {% endif %}
 ---
 apiVersion: gateway.networking.k8s.io/v1
