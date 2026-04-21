@@ -39,6 +39,18 @@ tasks:
     desc: Deploy the CMDB using Helm
     cmd: bash ./scripts/deploy-cmdb.sh
 
+  eso:
+    desc: Deploy External Secrets Operator with OpenBao integration
+    preconditions:
+      - sh: test -f dist/openbao-eso-role-id
+        msg: "dist/openbao-eso-role-id missing — run task intermediate-fullchain first"
+      - sh: test -f dist/openbao-eso-secret-id
+        msg: "dist/openbao-eso-secret-id missing — run task intermediate-fullchain first"
+      - sh: test -f dist/bundle.crt
+        msg: "dist/bundle.crt missing — run task intermediate-fullchain first"
+    cmds:
+      - bash ./scripts/deploy-eso.sh
+
   bmaas:
     desc: Deploy the BMaaS and the OCI registry using helm
     cmds:

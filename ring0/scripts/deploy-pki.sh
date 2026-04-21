@@ -56,6 +56,7 @@ function main() {
 	import_cas_to_openbao
 	create_openbao_role
 	configure_openbao_approle
+	configure_openbao_eso_approle
 	configure_autounseal
 }
 
@@ -392,6 +393,40 @@ POLICY
 
 	print_check "AppRole role-id: $role_id"
 	print_check "AppRole secret-id: dist/openbao-approle-secret-id"
+}
+
+function configure_openbao_eso_approle() {
+	print_milestone "Configuring ESO AppRole"
+
+	# Activate KV v2 if absent
+	_bao secrets list -format=json | jq -e '."secret/"' >/dev/null 2>&1 ||
+		_bao secrets enable -path=secret -version=2 kv
+
+	_bao policy write eso-secrets - <<'POLICY'
+path "secret/data/*" {
+  capabilities = ["read"]
+}
+path "secret/metadata/*" {
+  capabilities = ["read", "list"]
+}
+POLICY
+
+	_bao write auth/approle/role/eso \
+		token_policies=eso-secrets \
+		token_ttl=1h \
+		token_max_ttl=4h \
+		secret_id_ttl=0 \
+		secret_id_num_uses=0
+
+	local role_id
+	role_id="$(_bao read -format=json auth/approle/role/eso/role-id | jq -r '.data.role_id')"
+	echo -n "$role_id" >"$RING0_ROOT/dist/openbao-eso-role-id"
+
+	local secret_id
+	secret_id="$(_bao write -format=json -f auth/approle/role/eso/secret-id | jq -r '.data.secret_id')"
+	echo -n "$secret_id" >"$RING0_ROOT/dist/openbao-eso-secret-id"
+
+	print_check "ESO AppRole configured: dist/openbao-eso-role-id"
 }
 
 function configure_autounseal() {

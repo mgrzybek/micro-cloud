@@ -2,6 +2,7 @@
 
 - [common.sh](common.sh): bash fonctions used by the other scripts.
 - [deploy-bmaas.sh](./deploy-bmaas.sh): deploys the bare metal as a service software.
+- [deploy-eso.sh](./deploy-eso.sh): deploys External Secrets Operator and creates the ClusterSecretStore backed by OpenBao.
 - [deploy-bootstrap.sh](./deploy-bootstrap.sh): creates the bootstrap instance and configure its services.
 - [deploy-cmdb.sh](./deploy-cmdb.sh): deploys the CMDB software.
 - [deploy-forge.sh](./deploy-forge.sh): creates the forge instance and installes some building tools.

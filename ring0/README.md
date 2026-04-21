@@ -122,6 +122,7 @@ flowchart LR
     subgraph system["System Kubernetes addons"]
         storage["Local storage provisioner"] -- PVC can be created        --> cnpg["PostgreSQL DBaaS operator"]
         cert-manager["Certificates manager"] -- The cert-manager is ready --> cert-issuer["Certificates issuer using the PKI"]
+        eso["External Secrets Operator"] -- Syncs secrets from OpenBao --> k8s-secrets["Kubernetes Secrets"]
     end
 
     subgraph middlewares["Management middlewares"]
@@ -260,6 +261,15 @@ task cmdb
 
 > [!WARNING]
 > Installing Netbox can be quite long because of the database initialization.
+
+### Installing External Secrets Operator
+
+Deploys ESO and creates a `ClusterSecretStore` backed by OpenBao (KV v2, AppRole auth).
+The AppRole credentials are generated automatically during `task intermediate-fullchain`.
+
+```shell
+task eso
+```
 
 ### Configuring Tinkerbell
 

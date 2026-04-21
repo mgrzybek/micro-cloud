@@ -91,6 +91,55 @@ ISSUER
 	print_check "ClusterIssuer openbao-internal-ca created"
 }
 
+function install_external_secrets() {
+	print_milestone "Installing External Secrets Operator"
+
+	local eso_role_id eso_secret_id openbao_ca_bundle
+
+	eso_role_id="$(cat "$RING0_ROOT/dist/openbao-eso-role-id")"
+	eso_secret_id="$(cat "$RING0_ROOT/dist/openbao-eso-secret-id")"
+	openbao_ca_bundle="$(base64 <"$RING0_ROOT/dist/bundle.crt" | tr -d '\n')"
+
+	helm repo add external-secrets https://charts.external-secrets.io
+	helm repo update
+
+	if ! helm list -n external-secrets -o json | jq -e '.[] | select(.name=="external-secrets" and .status=="deployed")' >/dev/null 2>&1; then
+		helm install external-secrets external-secrets/external-secrets \
+			--create-namespace --namespace external-secrets \
+			--set installCRDs=true
+	fi
+
+	if ! kubectl get secret -n external-secrets openbao-eso-approle >/dev/null 2>&1; then
+		kubectl create secret generic openbao-eso-approle \
+			--namespace=external-secrets \
+			--from-literal="secretId=$eso_secret_id"
+	fi
+
+	kubectl apply -f - <<STORE
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: openbao
+spec:
+  provider:
+    vault:
+      server: "$PKI_ENDPOINT"
+      path: "secret"
+      version: "v2"
+      caBundle: "$openbao_ca_bundle"
+      auth:
+        appRole:
+          path: approle
+          roleId: "$eso_role_id"
+          secretRef:
+            namespace: external-secrets
+            name: openbao-eso-approle
+            key: secretId
+STORE
+
+	print_check "ClusterSecretStore openbao created"
+}
+
 function install_local_path_provisioner() {
 	print_milestone "Installing local path provisioner"
 
