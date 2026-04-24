@@ -77,9 +77,8 @@ function install_cfssl() {
 
 	cd ~
 	if [[ ! -d cfssl ]]; then
-		git clone https://github.com/wikimedia/cfssl.git
+		git clone https://github.com/cloudflare/cfssl
 		cd cfssl
-		git switch wmf
 		make all
 		cp bin/* /usr/local/bin
 		rm -rf /tmp/go-build*
