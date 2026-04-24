@@ -120,6 +120,9 @@ function configure_openbao() {
 	echo "#####################"
 	echo "👷 Configuring OpenBao"
 
+	local vault_addr
+	vault_addr="$(ip -4 addr show dev eth0 | awk '/inet/ {print $2}' | awk -F/ '{print $1}')"
+
 	chown openbao: "$pki/certificates/pki.$SUFFIX.pem" "$pki/certificates/pki.$SUFFIX-key.pem"
 
 	cat >/etc/openbao/openbao.hcl <<OPENBAO_CONFIG
@@ -150,7 +153,7 @@ Requires=openbao.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-Environment=VAULT_ADDR=https://localhost:8200
+Environment=VAULT_ADDR="https://$vault_addr:8200
 Environment=VAULT_CACERT=$pki/intermediate/bundle.crt
 ExecStart=/bin/bash -c '/usr/bin/bao operator unseal \$(cat /etc/openbao/unseal.key)'
 
