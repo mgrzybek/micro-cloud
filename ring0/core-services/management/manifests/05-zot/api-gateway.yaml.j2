@@ -71,32 +71,45 @@ metadata:
 spec:
   gatewayClassName: cilium
   infrastructure:
+    labels:
+      ring0/services: "true"
     annotations:
       tailscale.com/expose: "true"
       tailscale.com/hostname: registry
+      io.cilium/lb-ipam-ips: {{external_ip}}
   listeners:
 {% if tailscale_ip_address | length > 0 %}
   - protocol: HTTPS
     port: 443
     name: registry-https
-    allowedRoutes:
-      namespaces:
-        from: Same
     hostname: registry.{{ts_suffix}}
     tls:
+      mode: Terminate
       certificateRefs:
       - kind: Secret
         name: registry-mesh-endpoint
-      mode: Terminate
-{% else %}
-  - protocol: HTTP
-    port: 80
-    name: registry-http
     allowedRoutes:
       namespaces:
         from: Same
-    hostname: registry.{{ts_suffix}}
 {% endif %}
+  - protocol: HTTPS
+    port: 5000
+    name: registry-ring0-https
+    hostname: registry.ring0
+    tls:
+      mode: Terminate
+      certificateRefs:
+      - kind: Secret
+        name: registry-ring0-endpoint
+    allowedRoutes:
+      namespaces:
+        from: Same
+  - protocol: HTTP
+    port: 8080
+    name: bootstrap-http
+    allowedRoutes:
+      namespaces:
+        from: Same
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
@@ -105,10 +118,18 @@ metadata:
   namespace: {{namespace}}
 spec:
   parentRefs:
+{% if tailscale_ip_address | length > 0 %}
   - group: gateway.networking.k8s.io
     kind: Gateway
     name: registry
     namespace: {{namespace}}
+    sectionName: registry-https
+{% endif %}
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: registry
+    namespace: {{namespace}}
+    sectionName: registry-ring0-https
   rules:
   - backendRefs:
     - group: ""
@@ -121,119 +142,102 @@ spec:
         type: PathPrefix
         value: /
 ---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: http-bootstrap
+  namespace: {{namespace}}
+spec:
+  parentRefs:
+  - group: gateway.networking.k8s.io
+    kind: Gateway
+    name: registry
+    namespace: {{namespace}}
+    sectionName: bootstrap-http
+  rules:
+  - backendRefs:
+    - group: ""
+      kind: Service
+      name: bootstrap-proxy
+      port: 8080
+      weight: 1
+    matches:
+    - path:
+        type: PathPrefix
+        value: /
+---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nginx-zot-config
+  name: bootstrap-proxy-config
   namespace: {{namespace}}
 data:
-  zot.conf: |
+  bootstrap.conf: |
     resolver {{dns_resolver}} valid=5s;
     server {
-      # This is the classic and expected registry's port.
-      listen 5000 ssl;
-      server_name registry.ring0;
-
-      ssl_certificate /etc/nginx/ssl/tls.crt;
-      ssl_certificate_key /etc/nginx/ssl/tls.key;
-
-      # Standard TLS options.
-      ssl_protocols TLSv1.2 TLSv1.3;
-      ssl_ciphers HIGH:!aNULL:!MD5;
-      ssl_prefer_server_ciphers on;
-
-      location / {
-        # DNS request is made on call, not at pod startup
-        set $zot_target "zot.{{namespace}}.svc.cluster.local";
-        proxy_pass http://$zot_target:5000;
-
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_redirect off;
-      }
-    }
-    server {
       listen 8080;
+
+      location /assets/talos {
+        deny all;
+        return 403;
+      }
 
       location / {
         # DNS request is made on call, not at pod startup
         set $bootstrap_target "bootstrap";
         proxy_pass http://$bootstrap_target:8080;
-            
+
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_redirect off;
-      }
-
-      location /assets/talos {
-        deny all;
-        return 403;
       }
     }
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-zot-proxy
+  name: bootstrap-proxy
   namespace: {{namespace}}
   labels:
-    app: nginx-proxy
+    app: bootstrap-proxy
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx-zot-proxy
+      app: bootstrap-proxy
   template:
     metadata:
       labels:
-        app: nginx-zot-proxy
+        app: bootstrap-proxy
     spec:
       containers:
       - name: nginx
         image: nginx:latest
         ports:
-        - containerPort: 5000
-          hostPort: 5000
+        - containerPort: 8080
           protocol: TCP
         volumeMounts:
-        - name: tls-secret-volume
-          mountPath: /etc/nginx/ssl
-          readOnly: true
         - name: nginx-config-volume
           mountPath: /etc/nginx/conf.d
           readOnly: true
       volumes:
-      - name: tls-secret-volume
-        secret:
-          secretName: registry-ring0-endpoint
       - name: nginx-config-volume
         configMap:
-          name: nginx-zot-config
+          name: bootstrap-proxy-config
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    io.cilium/lb-ipam-ips: {{external_ip}}
-  name: nginx-ring0-endpoint
-  namespace: tinkerbell-system
-  labels:
-    app: nginx-ring0-endpoint-svc
-    ring0/services: "true"
+  name: bootstrap-proxy
+  namespace: {{namespace}}
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
-    - name: http
-      port: 8080
-      targetPort: 8080
-      protocol: TCP
-    - name: https
-      port: 5000
-      targetPort: 5000
-      protocol: TCP
+  - name: http
+    port: 8080
+    targetPort: 8080
+    protocol: TCP
   selector:
-    app: nginx-zot-proxy
+    app: bootstrap-proxy
