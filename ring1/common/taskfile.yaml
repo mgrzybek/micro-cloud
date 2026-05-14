@@ -1,6 +1,7 @@
 version: 3
 vars:
   docker_run: docker run --rm --privileged --volume /root:/var/build nixos/nix bash -c
+  helm_opts: --insecure-skip-tls-verify
   skopeo_opts: --dest-tls-verify=false --override-arch=amd64 --override-os=linux
   ts_suffix:
     sh: tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}'
@@ -94,6 +95,34 @@ tasks:
   #############################################################################
   # machinecfg
   #
+  create-machinecfg-helmcharts:
+    desc: Create the machinecfg helm charts
+    vars:
+      image_names:
+        - machinecfg-controller-netbox-updater
+        - machinecfg-controller-kubernetes-updater
+      nix_build: nix-build /var/build/machinecfg/default.nix
+    cmds:
+      - task: prepare-forge
+      - incus exec forge -- bash -c "if [ ! -d /root/machinecfg ]; then git clone https://github.com/mgrzybek/machinecfg /root/machinecfg ;fi"
+      - incus exec forge -- bash -c "cd /root/machinecfg && git pull"
+      - for: {var: image_names}
+        cmd: incus exec forge -- {{.docker_run}} "{{.nix_build}} -A {{.ITEM}}-helm && cp result/* /var/build/"
+      - for: {var: image_names}
+        cmd: |
+          for f in $(incus exec forge -- find /root -depth -maxdepth 1 -type f -name "{{.ITEM}}*.tgz"); do
+            incus file pull forge/$f {{.TASKFILE_DIR}}/dist/
+          done
+  push-machinecfg-helmcharts:
+    desc: Push machinecfg helm charts to the registry
+    vars:
+      image_name: machinecfg-controller
+      image_names:
+        - "{{.image_name}}-netbox-updater"
+        - "{{.image_name}}-kubernetes-updater"
+    cmds:
+      - for: {var: image_names}
+        cmd: helm push {{.helm_opts}} {{.TASKFILE_DIR}}/dist/{{.ITEM}}*.tgz oci://registry.{{.ts_suffix}}:443/charts
   create-machinecfg-oci:
     desc: Create the machinecfg OCI image
     vars:
@@ -106,7 +135,7 @@ tasks:
       - incus exec forge -- bash -c "if [ ! -d /root/machinecfg ]; then git clone https://github.com/mgrzybek/machinecfg /root/machinecfg ;fi"
       - incus exec forge -- bash -c "cd /root/machinecfg && git pull"
       - for: {var: image_names}
-        cmd: incus exec forge -- {{.docker_run}} "{{.nix_build}} -A {{.ITEM}}-oci -o oci && cat oci > /var/build/{{.ITEM}}.tar.gz && {{.nix_build}} -A {{.ITEM}}-sbom -o sbom && cp sbom/* /var/build/"
+        cmd: incus exec forge -- {{.docker_run}} "{{.nix_build}} -A {{.ITEM}}-oci -o oci && cat oci > /var/build/{{.ITEM}}.tar.gz"
       - for: {var: image_names}
         cmd: incus file pull forge/root/{{.ITEM}}.tar.gz {{.TASKFILE_DIR}}/dist/
     generates:
