@@ -95,7 +95,6 @@ spec:
   - protocol: HTTPS
     port: 5000
     name: registry-ring0-https
-    hostname: registry.ring0
     tls:
       mode: Terminate
       certificateRefs:
@@ -117,6 +116,11 @@ metadata:
   name: http-zot
   namespace: {{namespace}}
 spec:
+  hostnames:
+  - "registry.ring0"
+{% if tailscale_ip_address | length > 0 %}
+  - "registry.{{ts_suffix}}"
+{% endif %}
   parentRefs:
 {% if tailscale_ip_address | length > 0 %}
   - group: gateway.networking.k8s.io
