@@ -6,6 +6,7 @@ function main() {
 	prepare
 
 	install_kea
+	install_dnsmasq
 
 	install_go
 
@@ -51,6 +52,39 @@ function install_go() {
 	go version
 
 	echo
+}
+
+function install_dnsmasq() {
+	echo "#####################"
+	echo "👷 Installing dnsmasq"
+
+	mkdir -p /etc/systemd/system/dnsmasq.d
+	cat <<EOF | tee /etc/systemd/system/dnsmasq.d/networking.conf
+[Service]
+After=bootstrap-network.service
+EOF
+
+	apt install -y dnsmasq
+
+	# shellcheck disable=SC2153
+	cat <<EOF | tee /etc/dnsmasq.d/bootstrap.conf
+interface=eth1
+no-dhcp-interface=eth1
+bind-interfaces
+domain-needed
+bogus-priv
+server=/$TLD/100.100.100.100
+server=1.1.1.1
+server=8.8.8.8
+EOF
+
+	systemctl daemon-reload
+	systemctl enable dnsmasq
+	systemctl restart dnsmasq
+
+	echo "✔ Checking services"
+	systemctl status dnsmasq
+	return $?
 }
 
 function install_kea() {
