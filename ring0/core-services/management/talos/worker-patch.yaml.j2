@@ -1,0 +1,92 @@
+machine:
+  install:
+    disk: {{install_disk}}
+    image: {{install_image}}
+  time:
+    disabled: false
+    servers:
+      - ntp0.ovh.net
+      - time.cloudflare.com
+      - time.google.com
+    bootTimeout: 2m0s
+  network:
+    hostname: {{hostname}}
+    nameservers:
+      - 192.168.{{bootstrap_vlan_id}}.2
+    extraHostEntries:
+      - ip: {{mgmt_ts_ip}}
+        aliases:
+          - management.{{ts_suffix}}
+    interfaces:
+      - interface: {{bootstrap_iface}}
+        dhcp: false
+        addresses:
+          - {{bootstrap_cidr}}
+      - interface: {{internet_iface}}
+        dhcp: false
+        routes:
+          - network: 0.0.0.0/0 # The route's network (destination).
+            gateway: {{internet_default_route}}
+        vlans:
+          - vlanId: {{internet_vlan_id}}
+      - interface: {{services_iface}}
+        dhcp: false
+        addresses:
+          - {{services_cidr}}
+        vlans:
+          - vlanId: {{services_vlan_id}}
+  features:
+    kubePrism:
+      enabled: false
+      port: 7445
+  kubelet:
+    extraMounts:
+      - destination: /var/local
+        type: bind
+        source: /var/local
+        options:
+          - bind
+          - rshared
+          - rw
+---
+apiVersion: v1alpha1
+kind: VLANConfig
+name: {{services_iface}}
+vlanID: {{services_vlan_id}}
+vlanMode: 802.1q
+parent: {{bootstrap_iface}}
+up: true
+addresses:
+  - address: {{services_cidr}}
+---
+apiVersion: v1alpha1
+kind: VLANConfig
+name: {{internet_iface}}
+vlanID: {{internet_vlan_id}}
+vlanMode: 802.1q
+parent: {{bootstrap_iface}}
+up: true
+addresses:
+  - address: {{internet_cidr}}
+---
+apiVersion: v1alpha1
+kind: VolumeConfig
+name: EPHEMERAL
+provisioning:
+  maxSize: 70GiB
+  grow: false
+---
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: local-path-provisioner
+provisioning:
+  diskSelector:
+    match: "{{data_disk_selector}}"
+  minSize: {{data_disk_min_size}}
+  grow: true
+---
+apiVersion: v1alpha1
+kind: ExtensionServiceConfig
+name: tailscale
+environment:
+  - TS_AUTHKEY={{ts_authkey}}
