@@ -96,6 +96,29 @@ tasks:
           -o ./dist/coredns.yaml
       - kubectl apply --wait --namespace "$BMAAS_NAMESPACE" -f ./dist/coredns.yaml
 
+  add-worker:
+    desc: Add a physical worker node to the management cluster via Matchbox PXE
+    preconditions:
+      - sh: test -f dist/worker.yaml
+        msg: dist/worker.yaml missing — run task management first
+      - sh: test -f dist/talosconfig
+        msg: dist/talosconfig missing — run task management first
+      - sh: which yq
+        msg: yq is required (brew install yq / apt install yq)
+      - sh: test -n "${WORKER_HOSTNAME:-}"
+        msg: WORKER_HOSTNAME must be defined
+      - sh: test -n "${WORKER_MAC:-}"
+        msg: WORKER_MAC must be defined
+      - sh: test -n "${GITOPS_ROOT:-}"
+        msg: GITOPS_ROOT must be defined
+      - sh: test -f "${GITOPS_ROOT}/ring0/workers/${WORKER_HOSTNAME}/patch.yaml"
+        msg: "Per-machine patch not found: ${GITOPS_ROOT}/ring0/workers/${WORKER_HOSTNAME}/patch.yaml"
+      - sh: test -n "${TALOS_FACTORY_URL:-}"
+        msg: TALOS_FACTORY_URL must be defined
+      - sh: test -n "${WORKER_TALOS_FACTORY_UUID:-}"
+        msg: WORKER_TALOS_FACTORY_UUID must be defined
+    cmd: RING0_ROOT=$PWD GITOPS_ROOT=$GITOPS_ROOT bash ./scripts/management/add-worker.sh
+
 ##
 ## Dangerous tasks
 ##

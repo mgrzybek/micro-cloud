@@ -156,6 +156,7 @@ function create_talos_config() {
 		-D "services_cidr=$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" \
 		-D "bmaas_namespace=$BMAAS_NAMESPACE" \
 		-D "ts_suffix=$TS_SUFFIX" \
+		-D "ts_authkey=$TS_AUTHKEY" \
 		"$RING0_ROOT/core-services/management/talos/patch.yaml.j2" \
 		-o "$RING0_ROOT/dist/cp-patch.yaml"
 
@@ -165,6 +166,18 @@ function create_talos_config() {
 			--config-patch-control-plane "@$RING0_ROOT/dist/cp-patch.yaml" \
 			--install-image "$INSTALL_IMAGE" \
 			-o "$RING0_ROOT/dist"
+
+		# talosctl gen config injects HostnameConfig: auto: stable by default in Talos v1.13+.
+		# Remove it so per-machine HostnameConfig patches can be applied cleanly without conflict.
+		yq 'select(.kind != "HostnameConfig")' "$RING0_ROOT/dist/controlplane.yaml" \
+			>"$RING0_ROOT/dist/controlplane.yaml.tmp"
+		mv "$RING0_ROOT/dist/controlplane.yaml.tmp" "$RING0_ROOT/dist/controlplane.yaml"
+		yq 'select(.kind != "HostnameConfig")' "$RING0_ROOT/dist/worker.yaml" \
+			>"$RING0_ROOT/dist/worker.yaml.tmp"
+		mv "$RING0_ROOT/dist/worker.yaml.tmp" "$RING0_ROOT/dist/worker.yaml"
+
+		talosctl validate --config "$RING0_ROOT/dist/controlplane.yaml" --mode metal
+		talosctl validate --config "$RING0_ROOT/dist/worker.yaml" --mode metal
 	else
 		echo "$RING0_ROOT/dist/controlplane.yaml already exists"
 	fi
@@ -192,35 +205,6 @@ name: microdc-ca
 certificates: |-
 EOF
 	awk '{print "    "$0}' "$CA" >>dist/patch.yaml
-
-	cat <<EOF >>dist/patch.yaml
----
-apiVersion: v1alpha1
-kind: ExtensionServiceConfig
-name: tailscale
-environment:
-  - TS_AUTHKEY=$TS_AUTHKEY
----
-apiVersion: v1alpha1
-kind: ExtensionServiceConfig
-name: lldpd
-configFiles:
-  - content: |
-      configure lldp portidsubtype ifname
-      unconfigure lldp management-addresses-advertisements
-      unconfigure lldp capabilities-advertisements
-      configure system description "Management Node"
-    mountPath: /usr/local/etc/lldpd/lldpd.conf
----
-apiVersion: v1alpha1
-kind: UserVolumeConfig
-name: local-path-provisioner
-provisioning:
-  diskSelector:
-    match: "!system_disk"
-  minSize: 40GB
-  maxSize: 60GB
-EOF
 
 	print_check "Checking YAML"
 	cat "$RING0_ROOT/dist/patch.yaml"

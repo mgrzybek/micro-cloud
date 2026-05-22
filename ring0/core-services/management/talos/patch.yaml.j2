@@ -29,6 +29,9 @@ cluster:
   proxy:
     disabled: true
 machine:
+  features:
+    kubePrism:
+      enabled: false
   time:
     disabled: false
     servers:
@@ -38,7 +41,6 @@ machine:
       - time.google.com
     bootTimeout: 2m0s
   network:
-    hostname: management # Used to statically set the hostname for the machine.
     interfaces:
       - interface: enp6s0
         # Assigns static IP addresses to the interface.
@@ -57,3 +59,33 @@ machine:
           - bind
           - rshared
           - rw
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+hostname: management
+---
+apiVersion: v1alpha1
+kind: UserVolumeConfig
+name: local-path-provisioner
+provisioning:
+  diskSelector:
+    match: "!system_disk"
+  minSize: 40GB
+  maxSize: 60GB
+---
+apiVersion: v1alpha1
+kind: ExtensionServiceConfig
+name: tailscale
+environment:
+  - TS_AUTHKEY={{ts_authkey}}
+---
+apiVersion: v1alpha1
+kind: ExtensionServiceConfig
+name: lldpd
+configFiles:
+  - content: |
+      configure lldp portidsubtype ifname
+      unconfigure lldp management-addresses-advertisements
+      unconfigure lldp capabilities-advertisements
+      configure system description "Management Node"
+    mountPath: /usr/local/etc/lldpd/lldpd.conf
