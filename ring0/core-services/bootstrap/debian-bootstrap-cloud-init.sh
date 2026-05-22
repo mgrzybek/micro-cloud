@@ -66,6 +66,13 @@ EOF
 
 	apt install -y dnsmasq
 
+	# Use the Incus bridge DNS (eth0 upstream) to forward Tailscale MagicDNS queries.
+	# 100.100.100.100 is unreachable from an LXC container without Tailscale.
+	# /etc/resolv.conf points to 127.0.0.53 (systemd-resolved stub) — use resolvectl
+	# to get the actual upstream DNS server assigned via DHCP on eth0.
+	local INCUS_DNS
+	INCUS_DNS="$(resolvectl status | awk '/Current DNS Server:/ {print $NF; exit}')"
+
 	# shellcheck disable=SC2153
 	cat <<EOF | tee /etc/dnsmasq.d/bootstrap.conf
 interface=eth1
@@ -73,7 +80,7 @@ no-dhcp-interface=eth1
 bind-interfaces
 domain-needed
 bogus-priv
-server=/$TLD/100.100.100.100
+server=/$TLD/$INCUS_DNS
 server=1.1.1.1
 server=8.8.8.8
 EOF
