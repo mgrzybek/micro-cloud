@@ -1,0 +1,23 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: zot
+  namespace: tinkerbell-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: zot
+      sourceRef:
+        kind: HelmRepository
+        name: project-zot
+        namespace: flux-system
+  values:
+    service:
+      type: ClusterIP
+      port: 5000
+    persistence: true
+    pvc:
+      create: true
+    strategy:
+      type: Recreate

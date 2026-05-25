@@ -32,28 +32,21 @@ fi
 
 ################################################################################
 # Starting the tasks
+# Zot, Tinkerbell, and Kamaji are installed by Flux (HelmReleases in apps/05-bmaas/).
+# This script handles the steps that remain outside Flux:
+#   - Build and sync HookOS artifacts to the bootstrap server
+#   - Populate the Zot registry with Tinkerbell action images
+#   - Install Cluster API (clusterctl init)
 
 if ! is_hook_synced; then
 	build_hook
 	copy_hook_to_bootstrap
 fi
 
-create_announcement_configuration
-install_registry_api_gateway
-
 if ! helm list -n "$BMAAS_NAMESPACE" -o json | jq -e '.[] | select(.name=="zot")' >/dev/null 2>&1; then
-	install_zot
-	populate_zot
-else
-	print_check "Zot is already installed"
+	echo "Zot not yet ready — waiting for Flux to deploy it before populating the registry"
+	kubectl wait --for=condition=Ready --timeout=600s -n "$BMAAS_NAMESPACE" pod/zot-0
 fi
-
-if ! helm list -n "$BMAAS_NAMESPACE" -o json | jq -e '.[] | select(.name=="tinkerbell")' >/dev/null 2>&1; then
-	install_tinkerbell
-else
-	print_check "Tinkerbell is already installed"
-fi
-
-install_kamaji
+populate_zot
 
 install_cluster_api

@@ -1,0 +1,208 @@
+#! /usr/bin/env bash
+
+set -euo pipefail
+
+################################################################################
+# External libraries
+# shellcheck source=/dev/null
+source "$RING0_ROOT/scripts/common.sh"
+
+################################################################################
+# Prerequisites checks
+
+for var in \
+	TS_SUFFIX \
+	PKI_ENDPOINT \
+	PKI_ORG \
+	TS_OPERATOR_CLIENT_ID \
+	TS_OPERATOR_CLIENT_SECRET \
+	DNS_IP \
+	HOOKOS_IP \
+	REGISTRY_IP \
+	TINKERBELL_IP \
+	ARTIFACTS_FILE_SERVER \
+	DHCP_BIND_INTERFACE \
+	BOOTSTRAP_ENDPOINT \
+	ANNOUNCEMENTS_IFACE \
+	GHCR_TOKEN; do
+	if [[ -z "${!var:-}" ]]; then
+		echo "ERROR: $var must be defined"
+		exit 1
+	fi
+done
+
+for file in \
+	"$RING0_ROOT/dist/bundle.crt" \
+	"$RING0_ROOT/dist/openbao-approle-role-id" \
+	"$RING0_ROOT/dist/openbao-approle-secret-id" \
+	"$RING0_ROOT/dist/openbao-eso-role-id" \
+	"$RING0_ROOT/dist/openbao-eso-secret-id"; do
+	if [[ ! -f "$file" ]]; then
+		echo "ERROR: $file missing — run task intermediate-fullchain first"
+		exit 1
+	fi
+done
+
+print_milestone "Deploying FluxCD Operator and bootstrapping GitOps for ring0"
+
+################################################################################
+# Step 1 — Create ghcr.io pull secret so Flux can pull the OCI artifact
+
+print_step "Creating ghcr-auth pull secret in flux-system"
+kubectl create namespace flux-system --dry-run=client -o yaml | kubectl apply -f -
+if ! kubectl get secret -n flux-system ghcr-auth >/dev/null 2>&1; then
+	kubectl create secret docker-registry ghcr-auth \
+		--namespace flux-system \
+		--docker-server=ghcr.io \
+		--docker-username="${GITHUB_ACTOR:-mgrzybek}" \
+		--docker-password="$GHCR_TOKEN"
+fi
+print_check "ghcr-auth pull secret created"
+
+################################################################################
+# Step 2 — Create cluster-config ConfigMap (replaces Jinja2 variables)
+
+print_step "Creating cluster-config ConfigMap in flux-system"
+openbao_ca_bundle="$(base64 <"$RING0_ROOT/dist/bundle.crt" | tr -d '\n')"
+kubectl create configmap cluster-config \
+	--namespace flux-system \
+	--from-literal="announcements_iface=$ANNOUNCEMENTS_IFACE" \
+	--from-literal="ts_suffix=$TS_SUFFIX" \
+	--from-literal="pki_endpoint=$PKI_ENDPOINT" \
+	--from-literal="pki_org=$PKI_ORG" \
+	--from-literal="openbao_ca_bundle=$openbao_ca_bundle" \
+	--from-literal="dns_ip=$DNS_IP" \
+	--from-literal="hookos_ip=$HOOKOS_IP" \
+	--from-literal="registry_ip=$REGISTRY_IP" \
+	--from-literal="tinkerbell_ip=$TINKERBELL_IP" \
+	--from-literal="artifacts_file_server=$ARTIFACTS_FILE_SERVER" \
+	--from-literal="dhcp_bind_interface=$DHCP_BIND_INTERFACE" \
+	--from-literal="bootstrap_endpoint=$BOOTSTRAP_ENDPOINT" \
+	--from-literal="idp_hostname=idp.$TS_SUFFIX" \
+	--dry-run=client -o yaml | kubectl apply -f -
+print_check "cluster-config ConfigMap created"
+
+################################################################################
+# Step 3 — Create per-component secrets
+
+print_step "Creating Tailscale operator OAuth secret"
+kubectl create namespace tailscale --dry-run=client -o yaml | kubectl apply -f -
+if ! kubectl get secret -n tailscale tailscale-operator-oauth >/dev/null 2>&1; then
+	kubectl create secret generic tailscale-operator-oauth \
+		--namespace tailscale \
+		--from-literal="clientId=$TS_OPERATOR_CLIENT_ID" \
+		--from-literal="clientSecret=$TS_OPERATOR_CLIENT_SECRET"
+fi
+print_check "tailscale-operator-oauth secret created"
+
+print_step "Creating cert-manager OpenBao AppRole secret"
+kubectl create namespace cert-manager --dry-run=client -o yaml | kubectl apply -f -
+approle_role_id="$(cat "$RING0_ROOT/dist/openbao-approle-role-id")"
+approle_secret_id="$(cat "$RING0_ROOT/dist/openbao-approle-secret-id")"
+if ! kubectl get secret -n cert-manager openbao-approle >/dev/null 2>&1; then
+	kubectl create secret generic openbao-approle \
+		--namespace cert-manager \
+		--from-literal="secretId=$approle_secret_id"
+fi
+if ! kubectl get configmap -n cert-manager internal-ca-chain >/dev/null 2>&1; then
+	kubectl create configmap internal-ca-chain \
+		--namespace cert-manager \
+		--from-file="key=$RING0_ROOT/dist/bundle.crt"
+fi
+print_check "cert-manager secrets created"
+
+print_step "Creating ESO OpenBao AppRole secret"
+kubectl create namespace external-secrets --dry-run=client -o yaml | kubectl apply -f -
+eso_role_id="$(cat "$RING0_ROOT/dist/openbao-eso-role-id")"
+eso_secret_id="$(cat "$RING0_ROOT/dist/openbao-eso-secret-id")"
+if ! kubectl get secret -n external-secrets openbao-eso-approle >/dev/null 2>&1; then
+	kubectl create secret generic openbao-eso-approle \
+		--namespace external-secrets \
+		--from-literal="secretId=$eso_secret_id"
+fi
+print_check "ESO secrets created"
+
+print_step "Creating Authentik secret_key"
+kubectl create namespace platform-management --dry-run=client -o yaml | kubectl apply -f -
+if [[ ! -f "$RING0_ROOT/dist/authentik-secret-key" ]]; then
+	openssl rand -base64 50 | tr -d '\n' >"$RING0_ROOT/dist/authentik-secret-key"
+fi
+if ! kubectl get secret -n platform-management authentik-secret >/dev/null 2>&1; then
+	kubectl create secret generic authentik-secret \
+		--namespace platform-management \
+		--from-literal="secret_key=$(cat "$RING0_ROOT/dist/authentik-secret-key")"
+fi
+print_check "authentik-secret created"
+
+################################################################################
+# Step 4 — Create ClusterIssuer and ClusterSecretStore (outside Flux management)
+
+print_step "Creating cert-manager ClusterIssuer"
+kubectl apply -f - <<ISSUER
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: openbao-internal-ca
+spec:
+  vault:
+    path: pki_int/sign/microcloud-host
+    server: $PKI_ENDPOINT
+    caBundle: "$openbao_ca_bundle"
+    auth:
+      appRole:
+        path: approle
+        roleId: "$approle_role_id"
+        secretRef:
+          name: openbao-approle
+          key: secretId
+ISSUER
+print_check "ClusterIssuer openbao-internal-ca created"
+
+print_step "Creating ESO ClusterSecretStore"
+kubectl apply -f - <<STORE
+---
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: openbao
+spec:
+  provider:
+    vault:
+      server: "$PKI_ENDPOINT"
+      path: "secret"
+      version: "v2"
+      caBundle: "$openbao_ca_bundle"
+      auth:
+        appRole:
+          path: approle
+          roleId: "$eso_role_id"
+          secretRef:
+            namespace: external-secrets
+            name: openbao-eso-approle
+            key: secretId
+STORE
+print_check "ClusterSecretStore openbao created"
+
+################################################################################
+# Step 5 — Install Flux Operator via Helm
+
+print_step "Installing FluxCD Operator"
+helm repo add flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts >/dev/null 2>&1 || true
+if ! helm list -n flux-system -o json | jq -e '.[] | select(.name=="flux-operator" and .status=="deployed")' >/dev/null 2>&1; then
+	helm install flux-operator \
+		oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
+		--namespace flux-system \
+		--create-namespace \
+		--wait
+fi
+print_check "FluxCD Operator installed"
+
+################################################################################
+# Step 6 — Apply FluxInstance
+
+print_step "Applying FluxInstance"
+kubectl apply -f "$RING0_ROOT/flux/clusters/management/flux-system/flux-instance.yaml"
+print_check "FluxInstance applied — Flux will now reconcile ring0 from OCI"
+
+print_check "Bootstrap complete. Monitor with: flux get all -A"

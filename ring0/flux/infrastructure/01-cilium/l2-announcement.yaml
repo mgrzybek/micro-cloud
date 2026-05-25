@@ -1,0 +1,20 @@
+# L2 announcement pool — IPs come from the cluster-config ConfigMap created at bootstrap
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumLoadBalancerIPPool
+metadata:
+  name: management-services
+spec:
+  blocks: []
+  # Populated via patch from cluster-config at bootstrap (task flux)
+---
+apiVersion: "cilium.io/v2alpha1"
+kind: CiliumL2AnnouncementPolicy
+metadata:
+  name: management-services
+spec:
+  nodeSelector:
+    matchLabels:
+      ring0/services: "true"
+  interfaces: []
+  # Interface populated via patch from cluster-config at bootstrap (task flux)
+  loadBalancerIPs: true

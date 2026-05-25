@@ -1,0 +1,63 @@
+# cmdb-netbox-remote-auth secret must exist before reconciliation.
+# task flux creates it by rendering netbox-remote-auth.py.j2 with the Authentik OAuth credentials.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cmdb
+  namespace: platform-management
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: netbox
+      sourceRef:
+        kind: HelmRepository
+        name: netbox-community
+        namespace: flux-system
+  values:
+    defaultLanguage: fr-fr
+    postgresql:
+      enabled: false
+    externalDatabase:
+      existingSecretName: tooling-app
+      existingSecretKey: password
+      host: tooling-rw
+      port: 5432
+      username: app
+      database: netbox
+    valkey:
+      architecture: standalone
+    extraConfig:
+      - secret:
+          secretName: cmdb-netbox-remote-auth
+          items:
+            - netbox-remote-auth.py
+        optional: false
+    extraDeploy:
+      - "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cmdb-netbox-sso-pipeline-roles\n  namespace: platform-management\ndata:\n  sso_pipeline_roles.py: |\n    from netbox.authentication import Group\n    class AuthFailed(Exception):\n        pass\n    def add_groups(response, user, backend, *args, **kwargs):\n        try:\n            groups = response['groups']\n        except KeyError:\n            pass\n        for group in groups:\n            group, created = Group.objects.get_or_create(name=group)\n            user.groups.add(group)\n    def remove_groups(response, user, backend, *args, **kwargs):\n        try:\n            groups = response['groups']\n        except KeyError:\n            user.groups.clear()\n            pass\n        user_groups = [item.name for item in user.groups.all()]\n        delete_groups = list(set(user_groups) - set(groups))\n        for delete_group in delete_groups:\n            group = Group.objects.get(name=delete_group)\n            user.groups.remove(group)\n    def set_roles(response, user, backend, *args, **kwargs):\n        user.is_superuser = False\n        user.is_staff = False\n        try:\n            groups = response['groups']\n        except KeyError:\n            user.save()\n            pass\n        user.is_superuser = True if 'superusers' in groups else False\n        user.is_staff = True if 'staff' in groups else False\n        user.save()\n"
+    extraVolumes:
+      - name: remote-auth
+        secret:
+          secretName: cmdb-netbox-remote-auth
+      - name: sso-pipeline-roles
+        configMap:
+          name: cmdb-netbox-sso-pipeline-roles
+          defaultMode: 0755
+      - name: internal-ca-chain
+        configMap:
+          name: internal-ca-chain
+    extraVolumeMounts:
+      - name: remote-auth
+        mountPath: /etc/netbox/config/extra.py
+        subPath: netbox-remote-auth.py
+        readOnly: true
+      - name: sso-pipeline-roles
+        mountPath: /opt/netbox/netbox/netbox/custom_pipeline.py
+        subPath: sso_pipeline_roles.py
+        readOnly: true
+      - name: internal-ca-chain
+        mountPath: /usr/share/ca-certificates/
+        readOnly: true
+    extraEnvs:
+      - name: REQUESTS_CA_BUNDLE
+        value: /usr/share/ca-certificates/internal-ca.crt

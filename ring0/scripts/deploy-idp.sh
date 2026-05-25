@@ -13,11 +13,7 @@ source "$RING0_ROOT/scripts/management/install-platform-management.sh"
 
 ################################################################################
 # Starting the tasks
+# Authentik is installed by Flux (HelmRelease apps/03-idp).
+# This script only creates the Tailscale API gateway needed to expose idp.<ts_suffix>.
 
 install_idp_api_gateway
-
-if ! helm list -n platform-management -o json | jq -e '.[] | select(.name=="idp" and .status=="deployed")' >/dev/null 2>&1; then
-	install_authentik
-else
-	print_check "Authentik has already been deployed. Nothing to do."
-fi

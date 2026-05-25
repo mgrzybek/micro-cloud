@@ -1,0 +1,28 @@
+# oauth.clientId and oauth.clientSecret are injected via the tailscale-operator-oauth Secret,
+# created by task flux from TS_OPERATOR_CLIENT_ID / TS_OPERATOR_CLIENT_SECRET env vars.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tailscale-operator
+  namespace: tailscale
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: tailscale-operator
+      sourceRef:
+        kind: HelmRepository
+        name: tailscale
+        namespace: flux-system
+  valuesFrom:
+    - kind: Secret
+      name: tailscale-operator-oauth
+      valuesKey: clientId
+      targetPath: oauth.clientId
+    - kind: Secret
+      name: tailscale-operator-oauth
+      valuesKey: clientSecret
+      targetPath: oauth.clientSecret
+  values:
+    ingressClass:
+      enabled: false

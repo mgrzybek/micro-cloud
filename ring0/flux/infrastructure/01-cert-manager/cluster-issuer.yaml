@@ -1,0 +1,19 @@
+# openbao-approle secret must be created before this reconciles.
+# task flux creates it from dist/openbao-approle-role-id and dist/openbao-approle-secret-id.
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: openbao-internal-ca
+spec:
+  vault:
+    path: pki_int/sign/microcloud-host
+    # server and caBundle are patched by task flux from cluster-config
+    server: ""
+    caBundle: ""
+    auth:
+      appRole:
+        path: approle
+        roleId: ""
+        secretRef:
+          name: openbao-approle
+          key: secretId

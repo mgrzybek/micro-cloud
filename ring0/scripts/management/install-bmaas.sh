@@ -115,89 +115,6 @@ function copy_hook_to_bootstrap() {
 	echo
 }
 
-function install_tinkerbell() {
-	print_milestone "Installing tinkerbell"
-
-	# Get the iface holding the given ip addr
-	local management_services_interface
-	management_services_interface="$(talosctl --talosconfig "$RING0_ROOT/dist/talosconfig" -n management -e management get addresses | grep "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')"
-
-	# Get the pod CIDRs to set as trusted proxies
-	local trusted_proxies
-	trusted_proxies="$(kubectl get nodes -o jsonpath='{.items[*].spec.podCIDR}' | tr ' ' ',')"
-	if [[ -z "${trusted_proxies}" ]]; then
-		echo "ERROR: no nodes found, cannot determine trusted_proxies" >&2
-		return 1
-	fi
-
-	# Specify the Tinkerbell Helm chart version, here we use the latest release.
-	local tinkerbell_chart_version=v0.19.1
-
-	local instance_bootstrap_ipaddr
-	instance_bootstrap_ipaddr="$(incus list | awk '/bootstrap/ && /eth1/ {print $6}')"
-
-	# Creating the helm values from template
-	jinja2 --strict \
-		-D "dhcp_bind_interface=$management_services_interface" \
-		-D "registry_ip=$REGISTRY_IP" \
-		-D "bootstrap_endpoint=http://$instance_bootstrap_ipaddr:8080/assets/tinkerbell" \
-		-D "hookos_ip=$HOOKOS_IP" \
-		-D "tinkerbell_ip=$TINKERBELL_IP" \
-		-D "artifacts_file_server=http://$HOOKOS_IP:7173" \
-		"$MANIFESTS_PATH/05-tinkerbell/values.yaml.j2" \
-		-o "$RING0_ROOT/dist/tinkerbell-values.yaml"
-
-	create_namespace
-
-	helm install tinkerbell oci://ghcr.io/tinkerbell/charts/tinkerbell \
-		--version "$tinkerbell_chart_version" \
-		--namespace "$BMAAS_NAMESPACE" \
-		--set "trustedProxies={${trusted_proxies}}" \
-		--values "$RING0_ROOT/dist/tinkerbell-values.yaml"
-	kubectl label -n "$BMAAS_NAMESPACE" service hookos ring0/services="true"
-
-	# TODO: publish bundle.crt
-	ls "$RING0_ROOT/dist/bundle.crt"
-
-	print_check "Checking the deployment"
-	if kubectl -n "$BMAAS_NAMESPACE" wait --timeout=600s --for=condition=Available deployment/hookos; then
-		echo "hookos: OK"
-	fi
-	if kubectl -n "$BMAAS_NAMESPACE" wait --for=condition=Available deployment/tinkerbell; then
-		echo "tinkerbell: OK"
-	fi
-	echo
-}
-
-function install_zot() {
-	print_milestone "Installing zot registry"
-
-	create_namespace
-
-	print_step "Installing the helm chart"
-	if ! helm repo list | grep -qw zot; then
-		helm repo add project-zot http://zotregistry.dev/helm-charts
-		helm repo update
-	fi
-	helm install zot project-zot/zot --namespace "$BMAAS_NAMESPACE" --values "$MANIFESTS_PATH/05-zot/values.yaml"
-
-	install_registry_api_gateway
-
-	print_check "Checking the deployment"
-	if kubectl -n "$BMAAS_NAMESPACE" wait --for=condition=Ready --timeout=600s pod/zot-0; then
-		echo "zot: OK"
-	fi
-	echo
-}
-
-function create_namespace() {
-	# Creating privileged namespace
-	if ! kubectl get ns "$BMAAS_NAMESPACE" >/dev/null 2>&1; then
-		kubectl create ns "$BMAAS_NAMESPACE"
-		kubectl annotate ns "$BMAAS_NAMESPACE" pod-security.kubernetes.io/enforce=privileged
-	fi
-}
-
 function install_registry_api_gateway() {
 	print_milestone "Installing the api gateway used by the registry"
 
@@ -251,32 +168,6 @@ function populate_zot() {
 
 		skopeo copy --dest-tls-verify=false --override-arch=amd64 --override-os=linux "$source" "$destination"
 	done
-}
-
-function create_announcement_configuration() {
-	print_milestone "Create Cilium L2 announcement"
-
-	local management_services_interface
-	management_services_interface="$(talosctl --talosconfig "$RING0_ROOT/dist/talosconfig" -n management -e management get addresses | grep "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')"
-
-	jinja2 --strict \
-		-D "dns_ip=$DNS_IP" \
-		-D "hookos_ip=$HOOKOS_IP" \
-		-D "registry_ip=$REGISTRY_IP" \
-		-D "tinkerbell_ip=$TINKERBELL_IP" \
-		-D "announcement_interface=$management_services_interface" \
-		"$MANIFESTS_PATH/01-cilium/l2-announcement.yaml.j2" \
-		-o "$RING0_ROOT/dist/l2-announcement.yaml"
-	kubectl apply -f "$RING0_ROOT/dist/l2-announcement.yaml"
-}
-
-function install_kamaji() {
-	print_milestone "Installing kamaji"
-
-	helm upgrade --install kamaji-etcd clastix/kamaji-etcd --namespace kamaji-system --set replicas=1 --set datastore.name=microcloud
-
-	kubectl apply --server-side --force-conflicts -f "$MANIFESTS_PATH/05-kamaji/"
-	kubectl wait -n kamaji-system --for=condition=Available deployment/kamaji --timeout=600s
 }
 
 function install_cluster_api() {

@@ -230,22 +230,67 @@ export BMAAS_NAMESPACE=bmaas-system
 task management
 ```
 
-## Installing the middlewares
+## Bootstrapping Flux (GitOps)
 
-### Installing the IDP service
+After `task management`, bootstrap FluxCD Operator so it takes over all platform workloads.
+The script creates the pre-requisite Secrets and the `cluster-config` ConfigMap, then applies the `FluxInstance`.
+
+```shell
+# Required variables (add to your variables.sh / environment)
+export TS_OPERATOR_CLIENT_ID=xxxxxx
+export TS_OPERATOR_CLIENT_SECRET=xxxxxx
+export PKI_ENDPOINT=https://pki.<ts_suffix>
+export PKI_ORG="My Cloud"
+export DNS_IP=192.168.3.7
+export HOOKOS_IP=192.168.3.6
+export REGISTRY_IP=192.168.3.4
+export TINKERBELL_IP=192.168.3.5
+export ARTIFACTS_FILE_SERVER=http://<bootstrap-ip>/
+export DHCP_BIND_INTERFACE=eth0
+export BOOTSTRAP_ENDPOINT=http://<bootstrap-ip>/assets/tinkerbell
+export ANNOUNCEMENTS_IFACE=eth1   # interface on management node facing the services VLAN
+export GHCR_TOKEN=<GitHub PAT with read:packages>
+
+task flux
+```
+
+From this point Flux manages the following components from the OCI artifact (`ghcr.io/mgrzybek/micro-cloud`):
+
+| Flux path | Component | Namespace |
+| --- | --- | --- |
+| `infrastructure/01-cilium` | Cilium CNI | kube-system |
+| `infrastructure/01-cert-manager` | cert-manager | cert-manager |
+| `infrastructure/02-cnpg-operator` | CloudNative PG operator | cnpg-system |
+| `infrastructure/02-pg-cluster` | PostgreSQL cluster | platform-management |
+| `infrastructure/02-tailscale-operator` | Tailscale Operator | tailscale |
+| `apps/03-idp` | Authentik (IDP) | platform-management |
+| `apps/04-cmdb` | Netbox (CMDB) | platform-management |
+| `apps/04-eso` | External Secrets Operator | external-secrets |
+| `apps/05-bmaas/zot` | Zot OCI registry | tinkerbell-system |
+| `apps/05-bmaas/kamaji` | Kamaji | kamaji-system |
+| `apps/05-bmaas/tinkerbell` | Tinkerbell | tinkerbell-system |
+
+Monitor reconciliation with:
+
+```shell
+flux get all -A
+```
+
+## Post-Flux setup
+
+### Exposing the IDP service
+
+Once Flux has deployed Authentik, expose it on the tailnet:
 
 ```shell
 task idp
 ```
 
-> [!WARNING]
-> Installing Authentik can be quite long because of the database initialization.
-
 Now you are ready to populate your directory as needed. Please note that Netbox uses two groups by default: `staff` and `superusers`. You have to add some users to these groups to be able to manage Netbox.
 
-If you want to use Authentik's API to provision resources, you should create a token using the admin account at [https://idp.your-tailscale-suffix/if/admin/#/core/tokens).](https://idp/if/admin/#/core/tokens).
+If you want to use Authentik's API to provision resources, you should create a token using the admin account at [https://idp.your-tailscale-suffix/if/admin/#/core/tokens).](https://idp/if/admin/#/core/tokens).
 
-### Configuring the Netbox provider
+### Exposing the CMDB service
 
 The official documentation on how to integrate the SSO mechanism between Authentik and Netbox is [described here](https://integrations.goauthentik.io/documentation/netbox/).
 
@@ -262,15 +307,6 @@ task cmdb
 > [!WARNING]
 > Installing Netbox can be quite long because of the database initialization.
 
-### Installing External Secrets Operator
-
-Deploys ESO and creates a `ClusterSecretStore` backed by OpenBao (KV v2, AppRole auth).
-The AppRole credentials are generated automatically during `task intermediate-fullchain`.
-
-```shell
-task eso
-```
-
 ### Configuring Tinkerbell
 
 Some pre-configuration is needed to make CoreDNS use Netbox as an IPAM. You must create a `coredns` service account able to read IP addresses from the IPAM section.
@@ -284,6 +320,17 @@ export DNS_IP=192.168.3.7
 
 task bmaas
 ```
+
+## Releasing a new version
+
+Push a semver tag to trigger the GitHub Actions workflow that publishes the Flux manifests as an OCI artifact:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+Flux picks up the new tag automatically (or pin a specific version in `flux/clusters/management/flux-system/flux-instance.yaml`).
 
 ## Day-2: Adding a physical worker node
 

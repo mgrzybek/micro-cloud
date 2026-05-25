@@ -8,6 +8,16 @@ if [[ -z "$SUFFIX" ]]; then
 	exit 1
 fi
 
+if [[ -z "$SERVER_ADDR" ]]; then
+	echo "SERVER_ADDR must be present in /etc/cloud.sh"
+	exit 1
+fi
+
+if [[ -z "$SERVER_CIDR" ]]; then
+	echo "SERVER_CIDR must be present in /etc/cloud.sh"
+	exit 1
+fi
+
 function main() {
 	set -e
 
@@ -38,6 +48,21 @@ function prepare() {
 	apt -y install jq unzip wget
 	export HOME=/root
 	export pki=/var/lib/pki/files
+
+	echo "#####################"
+	echo "👷 Configuring the netboot iface"
+
+	cat <<EOF | tee /etc/systemd/system/bootstrap-network.service
+[Unit]
+Description=Bootstrap network configuration
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c "if ! ip addr show | grep -q $SERVER_CIDR ; then ip addr add dev eth1 $SERVER_CIDR ; fi"
+EOF
+
 }
 
 function install_go() {
