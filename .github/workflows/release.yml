@@ -1,0 +1,34 @@
+name: Release OCI artifact
+on:
+  push:
+    tags:
+      - "v*.*.*"
+permissions:
+  contents: read
+  packages: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Flux CLI
+        uses: fluxcd/flux2/action@main
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Push ring0 Flux manifests as OCI artifact
+        run: |
+          flux push artifact \
+            "oci://ghcr.io/${{ github.repository }}:${{ github.ref_name }}" \
+            --path=ring0/flux \
+            --source="${{ github.repositoryUrl }}" \
+            --revision="${{ github.ref_name }}@sha1:${{ github.sha }}"
+      - name: Tag artifact as latest
+        run: |
+          flux tag artifact \
+            "oci://ghcr.io/${{ github.repository }}:${{ github.ref_name }}" \
+            --tag latest

@@ -1,0 +1,40 @@
+# cluster-config — example ConfigMap consumed by Flux HelmRelease.valuesFrom references.
+#
+# Apply this before bootstrapping Flux (or let task flux create it):
+#   kubectl apply -f docs/cluster-config-example.yaml
+#
+# Values marked <RUNTIME:...> depend on live infrastructure state.
+# Quick reference:
+#   ts_suffix           : tailscale dns status | awk '/suffix =/ {gsub(")","");print $NF}'
+#   pki_endpoint        : https://pki.<ts_suffix>
+#   openbao_ca_bundle   : base64 < dist/bundle.crt | tr -d '\n'
+#   announcements_iface : talosctl ... get addresses \
+#                           | grep "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" \
+#                           | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}'
+#   dhcp_bind_interface : interface on the management node facing the bootstrap VLAN
+#   bootstrap_endpoint  : http://<bootstrap-incus-ip>/  (matchbox assets HTTP server)
+#   artifacts_file_server : http://<bootstrap-incus-ip>/  (Flatcar/Talos artifacts)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-config
+  namespace: flux-system
+data:
+  # ---- PKI ----------------------------------------------------------------
+  pki_org: "My Org"
+  pki_endpoint: "https://pki.my-cloud.ts.net"
+  openbao_ca_bundle: "<RUNTIME: base64 < dist/bundle.crt | tr -d '\\n'>"
+  # ---- Tailscale ----------------------------------------------------------
+  ts_suffix: "my-cloud.ts.net"
+  idp_hostname: "idp.my-cloud.ts.net"
+  # ---- Cilium L2 announcements --------------------------------------------
+  announcements_iface: "eth1"
+  # ---- BMaaS — service IPs assigned via CiliumLoadBalancerIPPool ----------
+  registry_ip: "192.168.3.4"
+  tinkerbell_ip: "192.168.3.5"
+  hookos_ip: "192.168.3.6"
+  dns_ip: "192.168.3.7"
+  # ---- Tinkerbell ---------------------------------------------------------
+  dhcp_bind_interface: "eth0"
+  bootstrap_endpoint: "http://192.168.2.2/"
+  artifacts_file_server: "http://192.168.2.2/"
