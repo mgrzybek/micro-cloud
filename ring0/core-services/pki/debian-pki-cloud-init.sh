@@ -61,7 +61,12 @@ After=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/bin/bash -c "if ! ip addr show | grep -q $SERVER_CIDR ; then ip addr add dev eth1 $SERVER_CIDR ; fi"
+
+[Install]
+WantedBy=multi-user.target
 EOF
+
+	systemctl enable bootstrap-network.service
 
 }
 

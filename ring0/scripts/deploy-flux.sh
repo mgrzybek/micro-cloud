@@ -24,6 +24,7 @@ for var in \
 	DHCP_BIND_INTERFACE \
 	BOOTSTRAP_ENDPOINT \
 	ANNOUNCEMENTS_IFACE \
+	GITHUB_ACTOR \
 	GHCR_TOKEN; do
 	if [[ -z "${!var:-}" ]]; then
 		echo "ERROR: $var must be defined"
@@ -54,7 +55,7 @@ if ! kubectl get secret -n flux-system ghcr-auth >/dev/null 2>&1; then
 	kubectl create secret docker-registry ghcr-auth \
 		--namespace flux-system \
 		--docker-server=ghcr.io \
-		--docker-username="${GITHUB_ACTOR:-mgrzybek}" \
+		--docker-username="$GITHUB_ACTOR" \
 		--docker-password="$GHCR_TOKEN"
 fi
 print_check "ghcr-auth pull secret created"

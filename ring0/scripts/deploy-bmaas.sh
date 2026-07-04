@@ -44,8 +44,9 @@ if ! is_hook_synced; then
 fi
 
 if ! helm list -n "$BMAAS_NAMESPACE" -o json | jq -e '.[] | select(.name=="zot")' >/dev/null 2>&1; then
-	echo "Zot not yet ready — waiting for Flux to deploy it before populating the registry"
-	kubectl wait --for=condition=Ready --timeout=600s -n "$BMAAS_NAMESPACE" pod/zot-0
+	echo "Zot not yet ready — waiting for Flux HelmRelease before populating the registry"
+	# Wait on the HelmRelease rather than a pod name, which depends on chart internals.
+	kubectl wait helmrelease/zot -n flux-system --for=condition=Ready --timeout=600s
 fi
 populate_zot
 

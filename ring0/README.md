@@ -249,6 +249,7 @@ export ARTIFACTS_FILE_SERVER=http://<bootstrap-ip>/
 export DHCP_BIND_INTERFACE=eth0
 export BOOTSTRAP_ENDPOINT=http://<bootstrap-ip>/assets/tinkerbell
 export ANNOUNCEMENTS_IFACE=eth1   # interface on management node facing the services VLAN
+export GITHUB_ACTOR=<your GitHub username>
 export GHCR_TOKEN=<GitHub PAT with read:packages>
 
 task flux

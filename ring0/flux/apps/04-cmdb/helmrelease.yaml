@@ -33,8 +33,8 @@ spec:
           items:
             - netbox-remote-auth.py
         optional: false
-    extraDeploy:
-      - "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cmdb-netbox-sso-pipeline-roles\n  namespace: platform-management\ndata:\n  sso_pipeline_roles.py: |\n    from netbox.authentication import Group\n    class AuthFailed(Exception):\n        pass\n    def add_groups(response, user, backend, *args, **kwargs):\n        try:\n            groups = response['groups']\n        except KeyError:\n            pass\n        for group in groups:\n            group, created = Group.objects.get_or_create(name=group)\n            user.groups.add(group)\n    def remove_groups(response, user, backend, *args, **kwargs):\n        try:\n            groups = response['groups']\n        except KeyError:\n            user.groups.clear()\n            pass\n        user_groups = [item.name for item in user.groups.all()]\n        delete_groups = list(set(user_groups) - set(groups))\n        for delete_group in delete_groups:\n            group = Group.objects.get(name=delete_group)\n            user.groups.remove(group)\n    def set_roles(response, user, backend, *args, **kwargs):\n        user.is_superuser = False\n        user.is_staff = False\n        try:\n            groups = response['groups']\n        except KeyError:\n            user.save()\n            pass\n        user.is_superuser = True if 'superusers' in groups else False\n        user.is_staff = True if 'staff' in groups else False\n        user.save()\n"
+    # sso-pipeline-roles ConfigMap is managed by Kustomize (sso-pipeline-roles.yaml),
+    # not via extraDeploy, so it can be read and maintained as a normal YAML file.
     extraVolumes:
       - name: remote-auth
         secret:

@@ -22,6 +22,8 @@ spec:
   sync:
     kind: OCIRepository
     url: oci://ghcr.io/mgrzybek/micro-cloud
+    # ref: latest picks up every new tag automatically — acceptable for a homelab.
+    # Pin to a specific version (e.g. ref: v1.2.3) to prevent unintended upgrades.
     ref: latest
     path: ./ring0/flux/clusters/management
     pullSecret: ghcr-auth
