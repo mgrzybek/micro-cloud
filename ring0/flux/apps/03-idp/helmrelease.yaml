@@ -21,7 +21,6 @@ spec:
       targetPath: authentik.secret_key
     - kind: ConfigMap
       name: cluster-config
-      namespace: flux-system
       valuesKey: ts_suffix
       targetPath: server.ingress.hosts[0]
       # Flux does not support string templating; the ingress host is patched by task flux:

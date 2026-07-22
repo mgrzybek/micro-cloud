@@ -19,7 +19,6 @@ spec:
   valuesFrom:
     - kind: ConfigMap
       name: cluster-config
-      namespace: flux-system
       valuesKey: announcements_iface
       targetPath: l2announcements.interface
   values:
