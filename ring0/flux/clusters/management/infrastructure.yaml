@@ -9,6 +9,6 @@ spec:
   prune: true
   sourceRef:
     kind: OCIRepository
-    name: flux
+    name: flux-system
   wait: true
   timeout: 30m
