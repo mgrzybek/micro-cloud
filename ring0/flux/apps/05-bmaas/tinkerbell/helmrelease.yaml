@@ -52,6 +52,11 @@ spec:
       # there. Pin to the node that owns the bootstrap VLAN interface.
       nodeSelector:
         kubernetes.io/hostname: management
+      # hostNetwork + single-node nodeSelector means the new pod can never
+      # schedule during a RollingUpdate (host ports still held by the old
+      # pod on the same node), so the rollout deadlocks until timeout.
+      strategy:
+        type: Recreate
       envs:
         globals:
           enableRufioController: false

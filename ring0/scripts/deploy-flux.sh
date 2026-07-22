@@ -103,7 +103,7 @@ kubectl create namespace tinkerbell-system --dry-run=client -o yaml | kubectl ap
 kubectl create configmap cluster-config \
 	--namespace tinkerbell-system \
 	--from-literal="dhcp_bind_interface=$DHCP_BIND_INTERFACE" \
-	--from-literal="bootstrap_endpoint=$BOOTSTRAP_ENDPOINT" \
+	--from-literal="bootstrap_endpoint=$BOOTSTRAP_ENDPOINT/assets/tinkerbell" \
 	--from-literal="hookos_ip=$HOOKOS_IP" \
 	--from-literal="tinkerbell_ip=$TINKERBELL_IP" \
 	--from-literal="artifacts_file_server=$ARTIFACTS_FILE_SERVER" \

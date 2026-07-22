@@ -19,3 +19,6 @@ spec:
   values:
     etcd:
       deploy: true
+      # No StorageClass is marked default on this cluster; pin explicitly.
+      persistence:
+        storageClassName: local-path
