@@ -20,6 +20,9 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create temporary directory
+        run: |
+          mkdir -p /tmp/verify
       - name: Push ring0 Flux manifests as OCI artifact
         run: |
           flux push artifact \
