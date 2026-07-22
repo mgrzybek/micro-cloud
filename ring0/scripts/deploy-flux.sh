@@ -86,6 +86,7 @@ print_step "Creating cluster-config ConfigMap in kube-system"
 kubectl create configmap cluster-config \
 	--namespace kube-system \
 	--from-literal="announcements_iface=$ANNOUNCEMENTS_IFACE" \
+	--from-literal="management_hostname=management.$TS_SUFFIX" \
 	--dry-run=client -o yaml | kubectl apply -f -
 print_check "cluster-config ConfigMap created in kube-system"
 
