@@ -61,27 +61,53 @@ fi
 print_check "ghcr-auth pull secret created"
 
 ################################################################################
-# Step 2 — Create cluster-config ConfigMap (replaces Jinja2 variables)
+# Step 2 — Create per-namespace cluster-config ConfigMaps
+#
+# helm.toolkit.fluxcd.io/v2 HelmRelease.spec.valuesFrom does not support
+# cross-namespace ConfigMap references (the referent must be in the same
+# namespace as the HelmRelease), so each consuming namespace gets its own
+# cluster-config ConfigMap with only the keys it needs.
+
+openbao_ca_bundle="$(base64 <"$RING0_ROOT/dist/bundle.crt" | tr -d '\n')"
 
 print_step "Creating cluster-config ConfigMap in flux-system"
-openbao_ca_bundle="$(base64 <"$RING0_ROOT/dist/bundle.crt" | tr -d '\n')"
 kubectl create configmap cluster-config \
 	--namespace flux-system \
-	--from-literal="announcements_iface=$ANNOUNCEMENTS_IFACE" \
-	--from-literal="ts_suffix=$TS_SUFFIX" \
 	--from-literal="pki_endpoint=$PKI_ENDPOINT" \
 	--from-literal="pki_org=$PKI_ORG" \
 	--from-literal="openbao_ca_bundle=$openbao_ca_bundle" \
 	--from-literal="dns_ip=$DNS_IP" \
-	--from-literal="hookos_ip=$HOOKOS_IP" \
 	--from-literal="registry_ip=$REGISTRY_IP" \
-	--from-literal="tinkerbell_ip=$TINKERBELL_IP" \
-	--from-literal="artifacts_file_server=$ARTIFACTS_FILE_SERVER" \
-	--from-literal="dhcp_bind_interface=$DHCP_BIND_INTERFACE" \
-	--from-literal="bootstrap_endpoint=$BOOTSTRAP_ENDPOINT" \
 	--from-literal="idp_hostname=idp.$TS_SUFFIX" \
 	--dry-run=client -o yaml | kubectl apply -f -
-print_check "cluster-config ConfigMap created"
+print_check "cluster-config ConfigMap created in flux-system"
+
+print_step "Creating cluster-config ConfigMap in kube-system"
+kubectl create configmap cluster-config \
+	--namespace kube-system \
+	--from-literal="announcements_iface=$ANNOUNCEMENTS_IFACE" \
+	--dry-run=client -o yaml | kubectl apply -f -
+print_check "cluster-config ConfigMap created in kube-system"
+
+print_step "Creating cluster-config ConfigMap in platform-management"
+kubectl create namespace platform-management --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap cluster-config \
+	--namespace platform-management \
+	--from-literal="ts_suffix=$TS_SUFFIX" \
+	--dry-run=client -o yaml | kubectl apply -f -
+print_check "cluster-config ConfigMap created in platform-management"
+
+print_step "Creating cluster-config ConfigMap in tinkerbell-system"
+kubectl create namespace tinkerbell-system --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap cluster-config \
+	--namespace tinkerbell-system \
+	--from-literal="dhcp_bind_interface=$DHCP_BIND_INTERFACE" \
+	--from-literal="bootstrap_endpoint=$BOOTSTRAP_ENDPOINT" \
+	--from-literal="hookos_ip=$HOOKOS_IP" \
+	--from-literal="tinkerbell_ip=$TINKERBELL_IP" \
+	--from-literal="artifacts_file_server=$ARTIFACTS_FILE_SERVER" \
+	--dry-run=client -o yaml | kubectl apply -f -
+print_check "cluster-config ConfigMap created in tinkerbell-system"
 
 ################################################################################
 # Step 3 — Create per-component secrets
