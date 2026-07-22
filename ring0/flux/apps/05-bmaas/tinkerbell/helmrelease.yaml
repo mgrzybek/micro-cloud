@@ -28,11 +28,11 @@ spec:
     - kind: ConfigMap
       name: cluster-config
       valuesKey: hookos_ip
-      targetPath: optional.hookos.service.annotations["io\.cilium/lb-ipam-ips"]
+      targetPath: optional.hookos.service.annotations.io\.cilium/lb-ipam-ips
     - kind: ConfigMap
       name: cluster-config
       valuesKey: tinkerbell_ip
-      targetPath: service.annotations["io\.cilium/lb-ipam-ips"]
+      targetPath: service.annotations.io\.cilium/lb-ipam-ips
     - kind: ConfigMap
       name: cluster-config
       valuesKey: tinkerbell_ip
@@ -46,6 +46,12 @@ spec:
       agentImage: registry.ring0:5000/tinkerbell/tink-agent
       hostNetwork: true
       image: ghcr.io/tinkerbell/tinkerbell
+      # dhcp_bind_interface (enp7s0) only exists on the "management" node —
+      # "management-1" has different physical NICs, so smee crashloops
+      # ("cannot bind to interface enp7s0: no such device") if scheduled
+      # there. Pin to the node that owns the bootstrap VLAN interface.
+      nodeSelector:
+        kubernetes.io/hostname: management
       envs:
         globals:
           enableRufioController: false
@@ -64,6 +70,9 @@ spec:
         hostNetwork: false
         arch: x86_64
         kernelVersion: both
+        # Pinned to the same node as the local-path PVC backing its storage.
+        nodeSelector:
+          kubernetes.io/hostname: management
         service:
           labels:
             ring0/services: "true"
