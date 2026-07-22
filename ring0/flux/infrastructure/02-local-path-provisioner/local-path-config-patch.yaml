@@ -1,0 +1,12 @@
+# Upstream's "mkdir -m 0777" is masked by the helper pod's umask (typically
+# 022), leaving the volume directory at 0755 with no group/other write
+# access. This breaks non-root workloads that rely on fsGroup (e.g.
+# flux-system/source-controller). Force umask 000 so the requested mode
+# is applied verbatim.
+- op: replace
+  path: /data/setup
+  value: |-
+    #!/bin/sh
+    set -eu
+    umask 000
+    mkdir -m 0777 -p "$VOL_DIR"
