@@ -31,7 +31,8 @@ spec:
       - secret:
           secretName: cmdb-netbox-remote-auth
           items:
-            - netbox-remote-auth.py
+            - key: netbox-remote-auth.py
+              path: netbox-remote-auth.py
         optional: false
     # sso-pipeline-roles ConfigMap is managed by Kustomize (sso-pipeline-roles.yaml),
     # not via extraDeploy, so it can be read and maintained as a normal YAML file.
