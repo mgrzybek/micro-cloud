@@ -5,7 +5,6 @@ resources:
   - helm-jetstack.yaml
   - helm-cnpg.yaml
   - helm-tailscale.yaml
-  - helm-rancher.yaml
   - helm-external-secrets.yaml
   - helm-authentik.yaml
   - helm-zot.yaml
