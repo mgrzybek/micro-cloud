@@ -27,7 +27,7 @@ jobs:
         run: |
           flux push artifact \
             "oci://ghcr.io/${{ github.repository }}:${{ github.ref_name }}" \
-            --path=ring0/flux \
+            --path=. \
             --source="${{ github.repositoryUrl }}" \
             --revision="${{ github.ref_name }}@sha1:${{ github.sha }}"
       - name: Tag artifact as latest
