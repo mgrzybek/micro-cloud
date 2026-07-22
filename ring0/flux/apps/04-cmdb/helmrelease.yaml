@@ -16,6 +16,9 @@ spec:
         namespace: flux-system
   values:
     defaultLanguage: fr-fr
+    # No StorageClass is marked default on this cluster; pin explicitly.
+    persistence:
+      storageClass: local-path
     postgresql:
       enabled: false
     externalDatabase:

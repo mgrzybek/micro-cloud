@@ -55,8 +55,12 @@ spec:
       # hostNetwork + single-node nodeSelector means the new pod can never
       # schedule during a RollingUpdate (host ports still held by the old
       # pod on the same node), so the rollout deadlocks until timeout.
+      # rollingUpdate must be explicitly nulled out: Helm deep-merges values,
+      # so the chart's default strategy.rollingUpdate otherwise survives
+      # alongside type: Recreate, which the Deployment API rejects.
       strategy:
         type: Recreate
+        rollingUpdate: null
       envs:
         globals:
           enableRufioController: false

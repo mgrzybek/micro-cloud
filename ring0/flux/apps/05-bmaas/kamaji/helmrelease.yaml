@@ -18,7 +18,30 @@ spec:
     crds: CreateReplace
   values:
     etcd:
-      deploy: true
-      # No StorageClass is marked default on this cluster; pin explicitly.
-      persistence:
-        storageClassName: local-path
+      # etcd is deployed by the separate "kamaji-etcd" Helm release
+      # (kamaji-system/kamaji-etcd, chart clastix/kamaji-etcd) and referenced
+      # by the "microcloud" DataStore CR. The main kamaji chart must not
+      # deploy its own embedded etcd StatefulSet.
+      deploy: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kamaji-etcd
+  namespace: kamaji-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: kamaji-etcd
+      sourceRef:
+        kind: HelmRepository
+        name: clastix
+        namespace: flux-system
+  values:
+    replicas: 1
+    persistentVolumeClaim:
+      storageClassName: local-path
+    datastore:
+      enabled: true
+      name: microcloud
