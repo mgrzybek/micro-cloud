@@ -13,15 +13,8 @@ source "$RING0_ROOT/scripts/management/install-platform-management.sh"
 
 ################################################################################
 # Starting the tasks
+# Netbox is installed by Flux (HelmRelease apps/04-cmdb).
+# The cmdb-netbox-remote-auth secret is created by deploy-flux.sh.
+# This script only creates the Tailscale API gateway needed to expose cmdb.<ts_suffix>.
 
 install_cmdb_api_gateway
-
-if ! kubectl get secret -n platform-management cmdb-netbox-remote-auth >/dev/null 2>&1; then
-	create_remote_netbox_auth_secret
-fi
-
-if ! helm list -n platform-management -o json | jq -e '.[] | select(.name=="cmdb" and .status=="deployed")' >/dev/null 2>&1; then
-	install_netbox
-else
-	print_check "Netbox has already been deployed. Nothing to do."
-fi

@@ -8,5 +8,7 @@ ring0/core-services/pki/files
 *.csr
 
 # Tooling
+.claude
+CLAUDE.md
 .vscode
 .task

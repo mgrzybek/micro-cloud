@@ -9,6 +9,25 @@ tasks:
 ##
   intermediate-fullchain:
     desc: Deploy the PKI and creates the root CA
+    preconditions:
+      - sh: tailscale status >/dev/null 2>&1
+        msg: Tailscale is not connected — run tailscale up first
+      - sh: test -n "${BRIDGE_BOOTSTRAP_NAME:-}"
+        msg: BRIDGE_BOOTSTRAP_NAME must be defined
+      - sh: test -n "${PKI_BOOTSTRAP_SERVER_ADDR:-}"
+        msg: PKI_BOOTSTRAP_SERVER_ADDR must be defined
+      - sh: test -n "${PKI_BOOTSTRAP_SERVER_CIDR:-}"
+        msg: PKI_BOOTSTRAP_SERVER_CIDR must be defined
+      - sh: test -n "${PKI_COUNTRY:-}"
+        msg: PKI_COUNTRY must be defined
+      - sh: test -n "${PKI_LOCATION:-}"
+        msg: PKI_LOCATION must be defined
+      - sh: test -n "${PKI_ORG:-}"
+        msg: PKI_ORG must be defined
+      - sh: test -n "${PKI_ORG_UNIT:-}"
+        msg: PKI_ORG_UNIT must be defined
+      - sh: test -n "${PKI_STATE:-}"
+        msg: PKI_STATE must be defined
     cmd: bash ./scripts/deploy-pki.sh
     generates: [dist/intermediate-fullchain.pem]
 
@@ -30,29 +49,61 @@ tasks:
     - You should read https://tailscale.com/kb/1236/kubernetes-operator. Is it OK?
     cmd: RING0_ROOT=$PWD bash ./scripts/deploy-management.sh
 
-  idp:
-    desc: Deploy the IDP using Helm
-    prompt: You should have a look at https://idp.{{.ts_suffix}}/if/flow/initial-setup/ for post-deployment configuration. Right?
-    cmd: bash ./scripts/deploy-idp.sh
-
-  cmdb:
-    desc: Deploy the CMDB using Helm
-    cmd: bash ./scripts/deploy-cmdb.sh
-
-  eso:
-    desc: Deploy External Secrets Operator with OpenBao integration
+  flux:
+    desc: Bootstrap FluxCD Operator and apply the FluxInstance (run after task management)
     preconditions:
+      - sh: test -f dist/bundle.crt
+        msg: "dist/bundle.crt missing — run task intermediate-fullchain first"
+      - sh: test -f dist/openbao-approle-role-id
+        msg: "dist/openbao-approle-role-id missing — run task intermediate-fullchain first"
+      - sh: test -f dist/openbao-approle-secret-id
+        msg: "dist/openbao-approle-secret-id missing — run task intermediate-fullchain first"
       - sh: test -f dist/openbao-eso-role-id
         msg: "dist/openbao-eso-role-id missing — run task intermediate-fullchain first"
       - sh: test -f dist/openbao-eso-secret-id
         msg: "dist/openbao-eso-secret-id missing — run task intermediate-fullchain first"
-      - sh: test -f dist/bundle.crt
-        msg: "dist/bundle.crt missing — run task intermediate-fullchain first"
-    cmds:
-      - bash ./scripts/deploy-eso.sh
+      - sh: test -n "${TS_OPERATOR_CLIENT_ID:-}"
+        msg: TS_OPERATOR_CLIENT_ID must be defined
+      - sh: test -n "${TS_OPERATOR_CLIENT_SECRET:-}"
+        msg: TS_OPERATOR_CLIENT_SECRET must be defined
+      - sh: test -n "${PKI_ENDPOINT:-}"
+        msg: PKI_ENDPOINT must be defined
+      - sh: test -n "${PKI_ORG:-}"
+        msg: PKI_ORG must be defined
+      - sh: test -n "${DNS_IP:-}"
+        msg: DNS_IP must be defined
+      - sh: test -n "${HOOKOS_IP:-}"
+        msg: HOOKOS_IP must be defined
+      - sh: test -n "${REGISTRY_IP:-}"
+        msg: REGISTRY_IP must be defined
+      - sh: test -n "${TINKERBELL_IP:-}"
+        msg: TINKERBELL_IP must be defined
+      - sh: test -n "${ARTIFACTS_FILE_SERVER:-}"
+        msg: ARTIFACTS_FILE_SERVER must be defined
+      - sh: test -n "${DHCP_BIND_INTERFACE:-}"
+        msg: DHCP_BIND_INTERFACE must be defined
+      - sh: test -n "${BOOTSTRAP_ENDPOINT:-}"
+        msg: BOOTSTRAP_ENDPOINT must be defined
+      - sh: test -n "${ANNOUNCEMENTS_IFACE:-}"
+        msg: ANNOUNCEMENTS_IFACE must be defined
+      - sh: test -n "${GHCR_TOKEN:-}"
+        msg: GHCR_TOKEN must be defined (GitHub PAT or classic token with read:packages)
+    cmd: >-
+      RING0_ROOT=$PWD
+      TS_SUFFIX={{.ts_suffix}}
+      bash ./scripts/deploy-flux.sh
+
+  idp:
+    desc: Deploy the IDP Tailscale API gateway (Authentik itself is deployed by Flux)
+    prompt: You should have a look at https://idp.{{.ts_suffix}}/if/flow/initial-setup/ for post-deployment configuration. Right?
+    cmd: bash ./scripts/deploy-idp.sh
+
+  cmdb:
+    desc: Deploy the CMDB Tailscale API gateway (Netbox itself is deployed by Flux)
+    cmd: bash ./scripts/deploy-cmdb.sh
 
   bmaas:
-    desc: Deploy the BMaaS and the OCI registry using helm
+    desc: Build and sync HookOS, populate the OCI registry, deploy CAPI (Zot/Tinkerbell/Kamaji are deployed by Flux)
     cmds:
       - bash ./scripts/deploy-bmaas.sh
       - task: install-coredns

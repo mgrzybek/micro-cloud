@@ -62,8 +62,12 @@ UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
 ```plaintext
 micro-cloud/
 ├── ring0/         # Low dependency services and core infrastructure (PKI, Netboot, Management)
+│   ├── core-services/   # Manifests and templates for ring0 Kubernetes workloads
+│   ├── flux/            # FluxCD Operator manifests (HelmRepositories, HelmReleases, Kustomizations)
+│   └── scripts/         # Bootstrap and day-2 shell scripts
 ├── ring1/         # Experimental environments (Kubernetes clusters, etc.)
-├── docs/          # Schematics, documentation, articles
+├── docs/          # Schematics, documentation, examples
+├── .github/       # GitHub Actions workflows (OCI artifact release)
 ├── LICENSE        # Project license (Apache 2.0)
 └── README.md      # This file
 ```
@@ -83,10 +87,11 @@ The project relies on a home server rack composed of:
 
 - **Network / VPN:** Tailscale
 - **Containerization:** Incus (LXC / KVM)
-- **PKI:** cfssl, cert-manager, openbao
+- **PKI:** cfssl, cert-manager, OpenBao
 - **Bootstrapping:** kea, matchbox, Talos
-- **Orchestration:** Kubernetes, Kamaji, Tinkerbell
-- **Middleware:** Netbox, Authentik
+- **GitOps:** FluxCD Operator (OCI artifact releases via GitHub Actions)
+- **Orchestration:** Kubernetes, Kamaji, Tinkerbell, Cluster API
+- **Middleware:** Netbox, Authentik, External Secrets Operator, Zot
 
 ## Getting Started
 
@@ -109,9 +114,9 @@ incus remote add headnode-0 headnode-0
 incus remote switch headnode-0
 ```
 
-### 3. Start the bootstrap sequence
+### 3. Bootstrap sequence
 
-Refer to [ring0/README.md](ring0/README.md) for step-by-step operations (PKI, netboot, management node).
+Refer to [ring0/README.md](ring0/README.md) for the full step-by-step sequence.
 
 ## Contributions
 

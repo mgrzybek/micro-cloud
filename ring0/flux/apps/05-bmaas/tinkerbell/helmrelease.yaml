@@ -1,0 +1,82 @@
+# cluster-config ConfigMap keys used here (created by task flux):
+#   dhcp_bind_interface, bootstrap_endpoint, hookos_ip, tinkerbell_ip,
+#   artifacts_file_server, registry_ip
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: tinkerbell
+  namespace: tinkerbell-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: tinkerbell
+      version: "v0.19.1"
+      sourceRef:
+        kind: HelmRepository
+        name: tinkerbell
+        namespace: flux-system
+  valuesFrom:
+    - kind: ConfigMap
+      name: cluster-config
+      namespace: flux-system
+      valuesKey: dhcp_bind_interface
+      targetPath: deployment.envs.smee.dhcpBindInterface
+    - kind: ConfigMap
+      name: cluster-config
+      namespace: flux-system
+      valuesKey: bootstrap_endpoint
+      targetPath: optional.hookos.downloadURL
+    - kind: ConfigMap
+      name: cluster-config
+      namespace: flux-system
+      valuesKey: hookos_ip
+      targetPath: optional.hookos.service.annotations["io\.cilium/lb-ipam-ips"]
+    - kind: ConfigMap
+      name: cluster-config
+      namespace: flux-system
+      valuesKey: tinkerbell_ip
+      targetPath: service.annotations["io\.cilium/lb-ipam-ips"]
+    - kind: ConfigMap
+      name: cluster-config
+      namespace: flux-system
+      valuesKey: tinkerbell_ip
+      targetPath: publicIP
+    - kind: ConfigMap
+      name: cluster-config
+      namespace: flux-system
+      valuesKey: artifacts_file_server
+      targetPath: artifactsFileServer
+  values:
+    deployment:
+      agentImage: registry.ring0:5000/tinkerbell/tink-agent
+      hostNetwork: true
+      image: ghcr.io/tinkerbell/tinkerbell
+      envs:
+        globals:
+          enableRufioController: false
+          enableSecondstar: false
+        smee:
+          ipxeHttpScriptExtraKernelArgs:
+            - console=ttyS0
+            - insecure_registries=registry.ring0:5000
+        tinkController:
+          enableLeaderElection: false
+      tinkServer:
+        autoDiscoveryAutoEnrollmentEnabled: true
+        autoDiscoveryEnabled: true
+    optional:
+      hookos:
+        hostNetwork: false
+        arch: x86_64
+        kernelVersion: both
+        service:
+          labels:
+            ring0/services: "true"
+          lbClass:
+      kubevip:
+        enabled: false
+    service:
+      labels:
+        ring0/services: "true"
+      lbClass:

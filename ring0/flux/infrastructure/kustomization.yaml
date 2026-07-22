@@ -1,0 +1,11 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - repositories
+  - 00-namespaces
+  - 01-cilium
+  - 01-cert-manager
+  - 02-local-path-provisioner
+  - 02-cnpg-operator
+  - 02-pg-cluster
+  - 02-tailscale-operator

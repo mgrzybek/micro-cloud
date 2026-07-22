@@ -14,6 +14,21 @@ source "$RING0_ROOT/scripts/common.sh"
 
 ################################################################################
 # Testing variables
+if [[ -z "${BRIDGE_BOOTSTRAP_NAME:-}" ]]; then
+	echo "BRIDGE_BOOTSTRAP_NAME must be defined"
+	exit 1
+fi
+
+if [[ -z "${PKI_BOOTSTRAP_SERVER_ADDR:-}" ]]; then
+	echo "PKI_BOOTSTRAP_SERVER_ADDR must be defined"
+	exit 1
+fi
+
+if [[ -z "${PKI_BOOTSTRAP_SERVER_CIDR:-}" ]]; then
+	echo "PKI_BOOTSTRAP_SERVER_CIDR must be defined"
+	exit 1
+fi
+
 if [[ -z "${PKI_COUNTRY:-}" ]]; then
 	echo "PKI_COUNTRY must be defined"
 	exit 1
@@ -68,15 +83,23 @@ function prepare() {
 		echo "Error getting Tailscale's SUFFIX"
 		exit 1
 	fi
-
+	cat <<EOF | tee "dist/$INSTANCE.sh"
+SERVER_ADDR=$PKI_BOOTSTRAP_SERVER_ADDR
+SERVER_CIDR=$PKI_BOOTSTRAP_SERVER_CIDR
+SUFFIX=$SUFFIX
+EOF
 }
 
 function create_instance() {
 	print_milestone "Deploying the PKI"
 
-	incus list "$INSTANCE" -f yaml | grep -q "name:" || incus launch images:debian/12 "$INSTANCE"
+	if ! incus list "$INSTANCE" -f yaml | grep -q "name:"; then
+		incus launch images:debian/12 "$INSTANCE"
+		incus config device add "$INSTANCE" eth1 nic "network=$BRIDGE_BOOTSTRAP_NAME"
+		incus exec "$INSTANCE" -- ip addr add dev eth1 "$PKI_BOOTSTRAP_SERVER_CIDR"
+	fi
 
-	echo "echo SUFFIX=$SUFFIX | tee /etc/cloud.sh" | incus exec "$INSTANCE" -- bash
+	incus file push "dist/$INSTANCE.sh" "$INSTANCE/etc/cloud.sh"
 	incus exec "$INSTANCE" -- bash <"$RING0_ROOT/core-services/$INSTANCE/debian-$INSTANCE-cloud-init.sh"
 
 	print_check "The PKI instance is ready to be configured"

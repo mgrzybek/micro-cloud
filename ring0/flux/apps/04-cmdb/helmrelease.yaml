@@ -1,0 +1,63 @@
+# cmdb-netbox-remote-auth secret must exist before reconciliation.
+# task flux creates it by rendering netbox-remote-auth.py.j2 with the Authentik OAuth credentials.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cmdb
+  namespace: platform-management
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: netbox
+      sourceRef:
+        kind: HelmRepository
+        name: netbox-community
+        namespace: flux-system
+  values:
+    defaultLanguage: fr-fr
+    postgresql:
+      enabled: false
+    externalDatabase:
+      existingSecretName: tooling-app
+      existingSecretKey: password
+      host: tooling-rw
+      port: 5432
+      username: app
+      database: netbox
+    valkey:
+      architecture: standalone
+    extraConfig:
+      - secret:
+          secretName: cmdb-netbox-remote-auth
+          items:
+            - netbox-remote-auth.py
+        optional: false
+    # sso-pipeline-roles ConfigMap is managed by Kustomize (sso-pipeline-roles.yaml),
+    # not via extraDeploy, so it can be read and maintained as a normal YAML file.
+    extraVolumes:
+      - name: remote-auth
+        secret:
+          secretName: cmdb-netbox-remote-auth
+      - name: sso-pipeline-roles
+        configMap:
+          name: cmdb-netbox-sso-pipeline-roles
+          defaultMode: 0755
+      - name: internal-ca-chain
+        configMap:
+          name: internal-ca-chain
+    extraVolumeMounts:
+      - name: remote-auth
+        mountPath: /etc/netbox/config/extra.py
+        subPath: netbox-remote-auth.py
+        readOnly: true
+      - name: sso-pipeline-roles
+        mountPath: /opt/netbox/netbox/netbox/custom_pipeline.py
+        subPath: sso_pipeline_roles.py
+        readOnly: true
+      - name: internal-ca-chain
+        mountPath: /usr/share/ca-certificates/
+        readOnly: true
+    extraEnvs:
+      - name: REQUESTS_CA_BUNDLE
+        value: /usr/share/ca-certificates/internal-ca.crt
