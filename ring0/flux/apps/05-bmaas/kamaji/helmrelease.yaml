@@ -8,6 +8,7 @@ spec:
   chart:
     spec:
       chart: kamaji
+      version: "0.0.0+latest"
       sourceRef:
         kind: HelmRepository
         name: clastix
@@ -16,12 +17,34 @@ spec:
     crds: CreateReplace
   upgrade:
     crds: CreateReplace
+  # 0.0.0+latest builds the "manager" image with ko, whose entrypoint lives
+  # at a path that varies by build (e.g. /ko-app/kamaji) instead of the
+  # /kamaji path baked into stable image tags. The chart still hardcodes
+  # command: ["/kamaji"], so drop it and let the image's own ENTRYPOINT run;
+  # the chart-provided args are passed through unchanged.
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: kamaji
+            patch: |
+              - op: remove
+                path: /spec/template/spec/containers/0/command
   values:
-    etcd:
-      # etcd is deployed by the separate "kamaji-etcd" Helm release
-      # (kamaji-system/kamaji-etcd, chart clastix/kamaji-etcd) and referenced
-      # by the "microcloud" DataStore CR. The main kamaji chart must not
-      # deploy its own embedded etcd StatefulSet.
+    image:
+      # Pin to a specific "edge" build: 0.0.0+latest (the chart) and the
+      # controller image are versioned independently upstream, so the chart
+      # version alone does not guarantee a matching/working image tag.
+      tag: 26.7.5-edge
+    kamaji-etcd:
+      # In 0.0.0+latest, kamaji-etcd became a dependent subchart of kamaji
+      # (condition kamaji-etcd.deploy), gated separately from the top-level
+      # etcd.deploy key used in stable releases. etcd is deployed by the
+      # separate "kamaji-etcd" Helm release (kamaji-system/kamaji-etcd,
+      # chart clastix/kamaji-etcd) and referenced by the "microcloud"
+      # DataStore CR; the embedded subchart must stay disabled to avoid an
+      # ownership conflict on the kamaji-etcd-client Service.
       deploy: false
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
