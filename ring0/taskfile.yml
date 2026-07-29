@@ -102,6 +102,23 @@ tasks:
     desc: Deploy the CMDB Tailscale API gateway (Netbox itself is deployed by Flux)
     cmd: bash ./scripts/deploy-cmdb.sh
 
+  configure-oidc:
+    desc: Configure OIDC auth on the management cluster's kube-apiserver using Authentik (run after task idp)
+    preconditions:
+      - sh: test -f dist/talosconfig
+        msg: "dist/talosconfig missing — run task management first"
+      - sh: test -n "${OIDC_CLIENT_ID:-}"
+        msg: OIDC_CLIENT_ID must be defined
+      - sh: test -n "${OIDC_SLUG:-}"
+        msg: OIDC_SLUG must be defined
+      - sh: test -n "${OIDC_GROUP:-}"
+        msg: OIDC_GROUP must be defined
+      - sh: test -n "${OIDC_CLUSTER_ROLE:-}"
+        msg: OIDC_CLUSTER_ROLE must be defined
+      - sh: kubectl get pods -n platform-management -l app.kubernetes.io/name=authentik --field-selector=status.phase=Running -o name | grep -q .
+        msg: "Authentik is not running — run task idp first"
+    cmd: RING0_ROOT=$PWD bash -x ./scripts/configure-oidc.sh
+
   bmaas:
     desc: Build and sync HookOS, populate the OCI registry, deploy CAPI (Zot/Tinkerbell/Kamaji are deployed by Flux)
     cmds:
@@ -191,10 +208,15 @@ tasks:
     dir: '{{.USER_WORKING_DIR}}/dist'
     cmd: rm -rf *
 
+  smoke-test-kamaji:
+    desc: Provision a throwaway TenantControlPlane to validate kamaji + kamaji-etcd bootstrap end to end
+    cmd: RING0_ROOT=$PWD bash ./scripts/smoke-test-kamaji.sh
+
 ##
 ## Day 2 operations
 ##
   update-kamaji:
+    #desc: Update Kamaji CRDs and manifests from the official repository and apply to the cluster
     desc: Update Kamaji CRDs and manifests from the official repository and apply to the cluster
     vars:
       manifests_dir: ./core-services/management/manifests/05-kamaji
@@ -212,7 +234,11 @@ tasks:
           git clone https://github.com/clastix/kamaji.git {{.kamaji_dir}}
         fi
       - git -C {{.kamaji_dir}} fetch --tags
-      - git -C {{.kamaji_dir}} checkout $(git -C {{.kamaji_dir}} tag | grep edge | tail -n1)
+      # `git tag | grep edge | tail -n1` relied on the old "edge-YY.M.P" tag
+      # naming and would silently pick a stale tag now that upstream renamed
+      # to "YY.M.P-edge" (digits sort before letters, breaking the lexical
+      # tail -n1). Use GitHub's own "latest release" instead.
+      - git -C {{.kamaji_dir}} checkout "$(gh api repos/clastix/kamaji/releases/latest --jq .tag_name)"
       - helm dependency build {{.kamaji_dir}}/charts/kamaji
       - helm template kamaji-crds {{.kamaji_dir}}/charts/kamaji-crds | yq > {{.manifests_dir}}/crds.yaml
       - |
@@ -238,16 +264,16 @@ tasks:
             --show-only templates/validatingwebhookconfiguration.yaml
         } | grep -v "^# Source:" | yq > {{.manifests_dir}}/webhook-configs.yaml
       - |
-          KAMAJI_VERSION=$(git -C {{.kamaji_dir}} tag | grep edge | tail -n1)
+          KAMAJI_VERSION=$(git -C {{.kamaji_dir}} describe --tags --exact-match)
           {{.sed}} -i -E "s,image: .+,image: \"clastix/kamaji:$KAMAJI_VERSION\"," {{.manifests_dir}}/deployment.yaml
 
-      - kubectl apply --server-side --force-conflicts -f {{.manifests_dir}}/crds.yaml
-      - kubectl apply -f {{.manifests_dir}}/namespace.yaml
-      - kubectl apply -f {{.manifests_dir}}/rbacs.yaml
-      - kubectl apply -f {{.manifests_dir}}/services.yaml
-      - kubectl apply -f {{.manifests_dir}}/certificate.yaml
-      - kubectl apply -f {{.manifests_dir}}/webhook-configs.yaml
-      - kubectl apply -f {{.manifests_dir}}/deployment.yaml
+      #- kubectl apply --server-side --force-conflicts -f {{.manifests_dir}}/crds.yaml
+      #- kubectl apply -f {{.manifests_dir}}/namespace.yaml
+      #- kubectl apply -f {{.manifests_dir}}/rbacs.yaml
+      #- kubectl apply -f {{.manifests_dir}}/services.yaml
+      #- kubectl apply -f {{.manifests_dir}}/certificate.yaml
+      #- kubectl apply -f {{.manifests_dir}}/webhook-configs.yaml
+      #- kubectl apply -f {{.manifests_dir}}/deployment.yaml
 
   update-flatcar-repo:
     desc: Download the latest version of Flatcar Linux artifacts and set the current symlink

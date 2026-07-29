@@ -308,6 +308,29 @@ task cmdb
 > [!WARNING]
 > Installing Netbox can be quite long because of the database initialization.
 
+### Configuring OIDC for the management cluster
+
+Once Authentik is exposed (`task idp`), you can let the management cluster's `kube-apiserver` authenticate users against it.
+
+1. In the Authentik admin UI, create an OAuth2/OpenID **Provider**:
+   - Redirect URI: `http://localhost:8000/callback` (used by `kubectl` via `kubelogin`/`oidc-login`)
+   - Scopes: `openid`, `profile`, `email`, `groups`
+   - Same signing-key caveat as Netbox: keep the default signing key, unselect the encryption key.
+2. Create an **Application** bound to this provider, and note its slug.
+3. Create a **group** in Authentik for cluster access (e.g. `k8s-admins`) and add a group mapping to the provider so the `groups` claim is populated.
+4. Run the post-configuration task — it patches the live Talos machine config (no cluster reinstall) and creates the matching `ClusterRoleBinding`:
+
+```shell
+export OIDC_SLUG=k8s-management
+export OIDC_CLIENT_ID=xxxxx
+export OIDC_GROUP=k8s-admins
+export OIDC_CLUSTER_ROLE=cluster-admin
+
+task configure-oidc
+```
+
+5. On the client side, install the `oidc-login` kubectl plugin (`kubectl krew install oidc-login`) and add an `exec`-based user to your kubeconfig pointing at `https://idp.<ts_suffix>/application/o/${OIDC_SLUG}/`, alongside — not replacing — the existing certificate-based `admin@management` context, so you always keep a fallback access path.
+
 ### Configuring Tinkerbell
 
 Some pre-configuration is needed to make CoreDNS use Netbox as an IPAM. You must create a `coredns` service account able to read IP addresses from the IPAM section.
