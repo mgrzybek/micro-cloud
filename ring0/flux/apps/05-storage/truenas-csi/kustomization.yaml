@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - rbac.yaml
+  - csidriver.yaml
+  - externalsecret.yaml
+  - controller-deployment.yaml
+  - node-daemonset.yaml
+  - volumesnapshotclass.yaml
+  # configmap.yaml and storageclass.yaml are NOT managed by Flux: they hold
+  # ts_suffix/TRUENAS_POOL-dependent values resolved only at deploy time by
+  # task flux (see ring0/scripts/deploy-flux.sh and each file's own header
+  # comment).

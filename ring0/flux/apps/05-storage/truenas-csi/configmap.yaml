@@ -1,0 +1,18 @@
+# NOT managed by Flux (excluded from kustomization.yaml): truenasURL and
+# nfsServer depend on ts_suffix, resolved only at deploy time. task flux
+# creates the real ConfigMap imperatively from TS_SUFFIX/TRUENAS_HOSTNAME/
+# TRUENAS_POOL — see ring0/scripts/deploy-flux.sh. This file documents the
+# expected shape.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: truenas-csi-config
+  namespace: truenas-csi
+data:
+  truenasURL: "wss://stockage.<ts_suffix>/api/current"
+  truenasInsecure: "true" # TrueNAS UI uses a self-signed cert in this homelab
+  defaultPool: "pool1"
+  nfsServer: "stockage.<ts_suffix>"
+  # iscsiPortal is a required key for the driver even when only NFS is used;
+  # unused placeholder since iSCSI is not enabled on this cluster.
+  iscsiPortal: "stockage.<ts_suffix>:3260"
