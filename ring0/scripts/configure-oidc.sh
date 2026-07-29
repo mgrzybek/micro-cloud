@@ -49,8 +49,50 @@ function render_oidc_patch() {
 function apply_oidc_patch() {
 	print_milestone "Patching the management cluster's kube-apiserver"
 
+	# `talosctl patch mc` appends to list fields (extraVolumes, machine.files)
+	# instead of replacing them, so re-running this task would duplicate the
+	# oidc-ca.pem entries and kubelet would then reject the kube-apiserver
+	# static pod for having a non-unique volume mount. Instead, fetch the
+	# live config and do a full `apply-config` (replace semantics): `yq`'s
+	# `*` merge operator deep-merges maps but replaces arrays wholesale, so
+	# extraVolumes/files end up with exactly one (updated) entry every time.
+
+	local live="$RING0_ROOT/dist/oidc-live-mc.yaml"
+	local live_active="$RING0_ROOT/dist/oidc-live-mc-active.yaml"
+	local live_main="$RING0_ROOT/dist/oidc-live-mc-main.yaml"
+	local live_rest="$RING0_ROOT/dist/oidc-live-mc-rest.yaml"
+	local merged_main="$RING0_ROOT/dist/oidc-mc-merged-main.yaml"
+	local merged="$RING0_ROOT/dist/oidc-mc-merged.yaml"
+
 	talosctl --talosconfig "$RING0_ROOT/dist/talosconfig" -n management -e management \
-		patch mc --patch-file "$RING0_ROOT/dist/oidc-patch.yaml"
+		get mc -o yaml >"$live"
+
+	# `get mc` can return several MachineConfigs resources (e.g. "persistent"
+	# and the active "v1alpha1" one) — only the latter reflects what's
+	# actually running, so it's the only one safe to patch and re-apply.
+	awk '/^    id: v1alpha1$/{active=1} active' "$live" |
+		awk '/^spec: \|/{found=1; next} found{ if (substr($0,1,4)=="    ") print substr($0,5); else print $0 }' \
+			>"$live_active"
+
+	# The active config is itself a multi-document YAML stream (the main
+	# v1alpha1 config plus TrustedRootsConfig/ExtensionServiceConfig/...
+	# documents). Only the first document is what we patch — merging across
+	# the whole stream would inject "cluster"/"machine" keys into unrelated
+	# documents, which Talos then rejects outright.
+	awk '/^---$/{exit} {print}' "$live_active" >"$live_main"
+	awk 'f{print} /^---$/{f=1}' "$live_active" >"$live_rest"
+
+	yq eval-all 'select(fi == 0) * select(fi == 1)' "$live_main" "$RING0_ROOT/dist/oidc-patch.yaml" \
+		>"$merged_main"
+
+	cat "$merged_main" >"$merged"
+	if [[ -s "$live_rest" ]]; then
+		echo "---" >>"$merged"
+		cat "$live_rest" >>"$merged"
+	fi
+
+	talosctl --talosconfig "$RING0_ROOT/dist/talosconfig" -n management -e management \
+		apply-config -f "$merged"
 
 	print_check "kube-apiserver OIDC flags applied"
 }
