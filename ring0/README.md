@@ -263,7 +263,7 @@ export ANNOUNCEMENTS_IFACE=eth1   # interface on management node facing the serv
 export GITHUB_ACTOR=<your GitHub username>
 export GHCR_TOKEN=<GitHub PAT with read:packages>
 export TRUENAS_HOSTNAME=storage   # Tailscale hostname of the TrueNAS appliance
-export TRUENAS_POOL=pool1         # Default ZFS pool for CSI volumes
+export TRUENAS_POOL=pool1/csi/nfs # Full ZFS dataset path used for CSI volumes
 
 task flux
 ```
@@ -378,7 +378,9 @@ excluded from Flux: `truenasURL`/`nfsServer` depend on `ts_suffix` and
 `datasetPath` depends on `TRUENAS_POOL`, both resolved only at deploy time.
 `task flux` creates them imperatively from `TRUENAS_HOSTNAME`/`TRUENAS_POOL`
 (see [deploy-flux.sh](scripts/deploy-flux.sh)); re-run it whenever these
-values change.
+values change. `TRUENAS_POOL` must be the full ZFS dataset path (e.g.
+`pool1/csi/nfs`), used verbatim as the StorageClass's `datasetPath` — do not
+just pass the pool name.
 
 ## Releasing a new version
 
@@ -481,7 +483,7 @@ Here are some common issues and tips:
   Check, in order: the secret was actually pushed to OpenBao (`bao kv get secret/truenas-csi`); OpenBao is not sealed (`dist/openbao-unseal.key`); the store is healthy (`kubectl get clustersecretstore openbao -o yaml`).
 
 - **PVC using `truenas-nfs` stays `Pending` with a pool/dataset error:**
-  The `truenas-nfs` StorageClass is created imperatively by `task flux` (excluded from Flux, see `flux/apps/05-storage/truenas-csi/storageclass.yaml`'s header comment) with `datasetPath` set to `$TRUENAS_POOL/csi/nfs`. Confirm `TRUENAS_POOL` matches an existing pool on the TrueNAS appliance and that the `csi/nfs` dataset exists under it, and that the management cluster can reach `stockage.<ts_suffix>` over Tailscale.
+  The `truenas-nfs` StorageClass is created imperatively by `task flux` (excluded from Flux, see `flux/apps/05-storage/truenas-csi/storageclass.yaml`'s header comment) with `datasetPath` set verbatim to `$TRUENAS_POOL` — this must already be the full dataset path (e.g. `pool1/csi/nfs`), not just the pool name, otherwise the driver looks up a duplicated/incorrect path (e.g. `pool1/csi/nfs/csi/nfs`). Confirm `TRUENAS_POOL` matches an existing dataset on the TrueNAS appliance, and that the management cluster can reach `stockage.<ts_suffix>` over Tailscale.
 
 - **General logs and debugging:**
   Use `journalctl` on the bootstrap and pki instances to inspect system services. Use `incus` commands with verbose flags (`-v`) for detailed output. Use `incus console management` to see the console output of the management instance, especially during the boot process.
