@@ -16,7 +16,7 @@ spec:
       serviceAccountName: truenas-csi-controller-sa
       containers:
         - name: csi-controller
-          image: ghcr.io/truenas/truenas-csi:latest
+          image: ghcr.io/truenas/truenas-csi:v1.1.2
           imagePullPolicy: IfNotPresent
           args:
             - "--endpoint=$(CSI_ENDPOINT)"

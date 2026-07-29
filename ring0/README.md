@@ -373,6 +373,13 @@ export VAULT_TOKEN="$(cat dist/openbao-root.token)"
 bao kv put secret/truenas-csi api-key=<your-truenas-api-key>
 ```
 
+The `truenas-csi-config` ConfigMap and the `truenas-nfs` StorageClass are also
+excluded from Flux: `truenasURL`/`nfsServer` depend on `ts_suffix` and
+`datasetPath` depends on `TRUENAS_POOL`, both resolved only at deploy time.
+`task flux` creates them imperatively from `TRUENAS_HOSTNAME`/`TRUENAS_POOL`
+(see [deploy-flux.sh](scripts/deploy-flux.sh)); re-run it whenever these
+values change.
+
 ## Releasing a new version
 
 Push a semver tag to trigger the GitHub Actions workflow that publishes the Flux manifests as an OCI artifact:
@@ -474,7 +481,7 @@ Here are some common issues and tips:
   Check, in order: the secret was actually pushed to OpenBao (`bao kv get secret/truenas-csi`); OpenBao is not sealed (`dist/openbao-unseal.key`); the store is healthy (`kubectl get clustersecretstore openbao -o yaml`).
 
 - **PVC using `truenas-nfs` stays `Pending` with a pool/dataset error:**
-  Confirm `TRUENAS_POOL` and the StorageClass's `datasetPath` (`flux/apps/05-storage/truenas-csi/storageclass.yaml`) match an existing pool/dataset on the TrueNAS appliance, and that the management cluster can reach `stockage.<ts_suffix>` over Tailscale.
+  The `truenas-nfs` StorageClass is created imperatively by `task flux` (excluded from Flux, see `flux/apps/05-storage/truenas-csi/storageclass.yaml`'s header comment) with `datasetPath` set to `$TRUENAS_POOL/csi/nfs`. Confirm `TRUENAS_POOL` matches an existing pool on the TrueNAS appliance and that the `csi/nfs` dataset exists under it, and that the management cluster can reach `stockage.<ts_suffix>` over Tailscale.
 
 - **General logs and debugging:**
   Use `journalctl` on the bootstrap and pki instances to inspect system services. Use `incus` commands with verbose flags (`-v`) for detailed output. Use `incus console management` to see the console output of the management instance, especially during the boot process.

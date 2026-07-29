@@ -6,8 +6,8 @@ resources:
   - externalsecret.yaml
   - controller-deployment.yaml
   - node-daemonset.yaml
-  - storageclass.yaml
   - volumesnapshotclass.yaml
-  # configmap.yaml is NOT managed by Flux: it holds ts_suffix-dependent
-  # hostnames resolved only at deploy time by task flux (see
-  # ring0/scripts/deploy-flux.sh and the file's own header comment).
+  # configmap.yaml and storageclass.yaml are NOT managed by Flux: they hold
+  # ts_suffix/TRUENAS_POOL-dependent values resolved only at deploy time by
+  # task flux (see ring0/scripts/deploy-flux.sh and each file's own header
+  # comment).

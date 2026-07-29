@@ -226,6 +226,23 @@ kubectl create configmap truenas-csi-config \
 	--dry-run=client -o yaml | kubectl apply -f -
 print_check "truenas-csi-config ConfigMap created"
 
+print_step "Creating truenas-nfs StorageClass"
+kubectl apply -f - <<STORAGECLASS
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: truenas-nfs
+provisioner: csi.truenas.io
+parameters:
+  protocol: "nfs"
+  datasetPath: "$TRUENAS_POOL/csi/nfs"
+  compression: "LZ4"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+STORAGECLASS
+print_check "truenas-nfs StorageClass created"
+
 ################################################################################
 # Step 5 — Install Flux Operator via Helm
 

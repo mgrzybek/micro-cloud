@@ -1,3 +1,7 @@
+# NOT managed by Flux (excluded from kustomization.yaml): datasetPath depends
+# on TRUENAS_POOL, resolved only at deploy time. task flux creates the real
+# StorageClass imperatively — see ring0/scripts/deploy-flux.sh. This file
+# documents the expected shape.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -5,7 +9,7 @@ metadata:
 provisioner: csi.truenas.io
 parameters:
   protocol: "nfs"
-  datasetPath: "csi/nfs"
+  datasetPath: "pool1/csi/nfs"
   compression: "LZ4"
 reclaimPolicy: Delete
 volumeBindingMode: Immediate

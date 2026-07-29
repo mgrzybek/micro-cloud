@@ -21,7 +21,7 @@ spec:
         - operator: Exists
       containers:
         - name: csi-node
-          image: ghcr.io/truenas/truenas-csi:latest
+          image: ghcr.io/truenas/truenas-csi:v1.1.2
           imagePullPolicy: IfNotPresent
           lifecycle:
             postStart:
