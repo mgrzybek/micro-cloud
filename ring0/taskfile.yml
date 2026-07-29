@@ -208,6 +208,10 @@ tasks:
     dir: '{{.USER_WORKING_DIR}}/dist'
     cmd: rm -rf *
 
+  smoke-test-kamaji:
+    desc: Provision a throwaway TenantControlPlane to validate kamaji + kamaji-etcd bootstrap end to end
+    cmd: RING0_ROOT=$PWD bash ./scripts/smoke-test-kamaji.sh
+
 ##
 ## Day 2 operations
 ##
