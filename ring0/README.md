@@ -28,6 +28,7 @@ C4Container
 
 Person(admin, "Micro Cloud administrator", "You")
 System_Ext(mesh, "Tailscale Mesh VPN", "Network Mesh VPN / SDN.")
+System_Ext(truenas, "TrueNAS", "ZFS storage appliance")
 
 Enterprise_Boundary(ring0, "Ring 0 - Management") {
     Container_Boundary(headnode, "headnode-0") {
@@ -38,6 +39,7 @@ Enterprise_Boundary(ring0, "Ring 0 - Management") {
 
 BiRel(mesh, management, "is connected")
 Rel(bootstrap, management, "installs")
+BiRel(mesh, truenas, "Is connected")
 }
 ```
 
