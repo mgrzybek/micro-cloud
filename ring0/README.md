@@ -66,14 +66,19 @@ Enterprise_Boundary(ring0, "Ring 0") {
             Component(id, "ID Provider", "helm, authentik")
             Component(dcim, "CMDB", "helm, netbox")
             Component(deployment, "Platform deployer", "helm, kamaji, kamaji")
+            Component(csi, "Storage CSI driver", "kustomize, truenas-csi", "Provisions PVs from an external TrueNAS over NFS.")
         }
     }
 }
 
+System_Ext(truenas, "TrueNAS", "ZFS storage appliance")
+
 Rel(openbao, issuer, "Provides certificates")
 Rel(tailscale, id, "Connects to the SDN")
 Rel(tailscale, dcim, "Connects to the SDN")
+Rel(csi, truenas, "Provisions NFS volumes via the Websocket API")
 BiRel(mesh, tailscale, "Is connected")
+BiRel(mesh, truenas, "Is connected")
 
 UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="2")
 ```
@@ -123,6 +128,8 @@ flowchart LR
         storage["Local storage provisioner"] -- PVC can be created        --> cnpg["PostgreSQL DBaaS operator"]
         cert-manager["Certificates manager"] -- The cert-manager is ready --> cert-issuer["Certificates issuer using the PKI"]
         eso["External Secrets Operator"] -- Syncs secrets from OpenBao --> k8s-secrets["Kubernetes Secrets"]
+        snapshotter["External snapshotter CRDs + controller"] -- VolumeSnapshots can be created --> truenas-csi["TrueNAS CSI driver"]
+        eso -- Provides the TrueNAS API key --> truenas-csi
     end
 
     subgraph middlewares["Management middlewares"]
@@ -251,6 +258,8 @@ export BOOTSTRAP_ENDPOINT=http://<bootstrap-ip>/assets/tinkerbell
 export ANNOUNCEMENTS_IFACE=eth1   # interface on management node facing the services VLAN
 export GITHUB_ACTOR=<your GitHub username>
 export GHCR_TOKEN=<GitHub PAT with read:packages>
+export TRUENAS_HOSTNAME=storage   # Tailscale hostname of the TrueNAS appliance
+export TRUENAS_POOL=pool1         # Default ZFS pool for CSI volumes
 
 task flux
 ```
@@ -264,12 +273,14 @@ From this point Flux manages the following components from the OCI artifact (`gh
 | `infrastructure/02-cnpg-operator` | CloudNative PG operator | cnpg-system |
 | `infrastructure/02-pg-cluster` | PostgreSQL cluster | platform-management |
 | `infrastructure/02-tailscale-operator` | Tailscale Operator | tailscale |
+| `infrastructure/02-external-snapshotter` | CSI VolumeSnapshot CRDs + controller | kube-system |
 | `apps/03-idp` | Authentik (IDP) | platform-management |
 | `apps/04-cmdb` | Netbox (CMDB) | platform-management |
 | `apps/04-eso` | External Secrets Operator | external-secrets |
 | `apps/05-bmaas/zot` | Zot OCI registry | tinkerbell-system |
 | `apps/05-bmaas/kamaji` | Kamaji | kamaji-system |
 | `apps/05-bmaas/tinkerbell` | Tinkerbell | tinkerbell-system |
+| `apps/05-storage/truenas-csi` | TrueNAS CSI driver | truenas-csi |
 
 Monitor reconciliation with:
 
@@ -345,6 +356,19 @@ export DNS_IP=192.168.3.7
 task bmaas
 ```
 
+### Configuring the TrueNAS CSI driver
+
+The driver's API key is not part of the GitOps repository: it is pulled at
+runtime from OpenBao via an `ExternalSecret` (`truenas-csi/truenas-api-credentials`).
+Push it once, from inside the `pki` Incus instance — see
+[core-services/pki/README.md](core-services/pki/README.md#openbao):
+
+```shell
+export VAULT_ADDR=https://<pki-instance-ip>:8200
+export VAULT_TOKEN="$(cat dist/openbao-root.token)"
+bao kv put secret/truenas-csi api-key=<your-truenas-api-key>
+```
+
 ## Releasing a new version
 
 Push a semver tag to trigger the GitHub Actions workflow that publishes the Flux manifests as an OCI artifact:
@@ -375,7 +399,7 @@ See [core-services/management/talos/README.md](core-services/management/talos/RE
 
 ```shell
 # Identity
-export WORKER_HOSTNAME=worker1           # Must match the patch file name in gitops
+export WORKER_HOSTNAME=worker1          # Must match the patch file name in gitops
 export WORKER_MAC=aa:bb:cc:dd:ee:ff     # MAC address of the NIC on the bootstrap VLAN
 
 # Gitops repository containing the per-machine patch
@@ -435,6 +459,18 @@ Here are some common issues and tips:
 
 - **`add-worker` task fails with `Per-machine patch not found`:**
   Create `$GITOPS_ROOT/ring0/workers/$WORKER_HOSTNAME/patch.yaml` in your gitops repository. See [core-services/management/talos/README.md](core-services/management/talos/README.md) for the expected structure.
+
+- **`403 permission denied` when running `bao kv put` against OpenBao:**
+  The `eso-secrets` policy used by the ESO AppRole is read-only (`secret/data/*`, capability `read`). Writing a new secret (e.g. `secret/truenas-csi`) requires the root token instead: `export VAULT_TOKEN="$(cat dist/openbao-root.token)"`. See [core-services/pki/README.md](core-services/pki/README.md#openbao).
+
+- **`truenas-csi-controller` / `truenas-csi-node` stuck in `CreateContainerConfigError`:**
+  The `truenas-csi-config` ConfigMap is missing or incomplete. It is intentionally excluded from Flux (see the header comment in `flux/apps/05-storage/truenas-csi/configmap.yaml`) because `truenasURL`/`nfsServer` depend on `ts_suffix`; it is created imperatively by `task flux`. Re-run it with `TRUENAS_HOSTNAME` and `TRUENAS_POOL` exported.
+
+- **`ExternalSecret truenas-api-credentials` never syncs (`SecretSyncedError`):**
+  Check, in order: the secret was actually pushed to OpenBao (`bao kv get secret/truenas-csi`); OpenBao is not sealed (`dist/openbao-unseal.key`); the store is healthy (`kubectl get clustersecretstore openbao -o yaml`).
+
+- **PVC using `truenas-nfs` stays `Pending` with a pool/dataset error:**
+  Confirm `TRUENAS_POOL` and the StorageClass's `datasetPath` (`flux/apps/05-storage/truenas-csi/storageclass.yaml`) match an existing pool/dataset on the TrueNAS appliance, and that the management cluster can reach `stockage.<ts_suffix>` over Tailscale.
 
 - **General logs and debugging:**
   Use `journalctl` on the bootstrap and pki instances to inspect system services. Use `incus` commands with verbose flags (`-v`) for detailed output. Use `incus console management` to see the console output of the management instance, especially during the boot process.
