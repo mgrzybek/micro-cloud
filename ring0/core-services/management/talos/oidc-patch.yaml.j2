@@ -1,0 +1,21 @@
+cluster:
+  apiServer:
+    extraArgs:
+      oidc-issuer-url: https://idp.{{ts_suffix}}/application/o/{{oidc_slug}}/
+      oidc-client-id: "{{oidc_client_id}}"
+      oidc-username-claim: preferred_username
+      oidc-groups-claim: groups
+      oidc-username-prefix: "oidc:"
+      oidc-groups-prefix: "oidc:"
+      oidc-ca-file: /var/lib/kubernetes/oidc-ca.pem
+    extraVolumes:
+      - hostPath: /var/lib/kubernetes/oidc-ca.pem
+        mountPath: /var/lib/kubernetes/oidc-ca.pem
+        readonly: true
+machine:
+  files:
+    - path: /var/lib/kubernetes/oidc-ca.pem
+      op: create
+      permissions: 0o444
+      content: |-
+        OIDC_CA_BUNDLE_PLACEHOLDER

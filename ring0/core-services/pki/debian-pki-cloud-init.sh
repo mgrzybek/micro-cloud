@@ -183,7 +183,7 @@ Requires=openbao.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-Environment=VAULT_ADDR="https://$vault_addr:8200
+Environment=VAULT_ADDR="https://$vault_addr:8200"
 Environment=VAULT_CACERT=$pki/intermediate/bundle.crt
 ExecStart=/bin/bash -c '/usr/bin/bao operator unseal \$(cat /etc/openbao/unseal.key)'
 

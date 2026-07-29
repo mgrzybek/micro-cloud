@@ -102,6 +102,23 @@ tasks:
     desc: Deploy the CMDB Tailscale API gateway (Netbox itself is deployed by Flux)
     cmd: bash ./scripts/deploy-cmdb.sh
 
+  configure-oidc:
+    desc: Configure OIDC auth on the management cluster's kube-apiserver using Authentik (run after task idp)
+    preconditions:
+      - sh: test -f dist/talosconfig
+        msg: "dist/talosconfig missing — run task management first"
+      - sh: test -n "${OIDC_CLIENT_ID:-}"
+        msg: OIDC_CLIENT_ID must be defined
+      - sh: test -n "${OIDC_SLUG:-}"
+        msg: OIDC_SLUG must be defined
+      - sh: test -n "${OIDC_GROUP:-}"
+        msg: OIDC_GROUP must be defined
+      - sh: test -n "${OIDC_CLUSTER_ROLE:-}"
+        msg: OIDC_CLUSTER_ROLE must be defined
+      - sh: kubectl get pods -n platform-management -l app.kubernetes.io/name=authentik --field-selector=status.phase=Running -o name | grep -q .
+        msg: "Authentik is not running — run task idp first"
+    cmd: RING0_ROOT=$PWD bash ./scripts/configure-oidc.sh
+
   bmaas:
     desc: Build and sync HookOS, populate the OCI registry, deploy CAPI (Zot/Tinkerbell/Kamaji are deployed by Flux)
     cmds:
