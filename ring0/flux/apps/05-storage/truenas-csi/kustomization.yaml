@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - rbac.yaml
+  - csidriver.yaml
+  - externalsecret.yaml
+  - controller-deployment.yaml
+  - node-daemonset.yaml
+  - storageclass.yaml
+  - volumesnapshotclass.yaml
+  # configmap.yaml is NOT managed by Flux: it holds ts_suffix-dependent
+  # hostnames resolved only at deploy time by task flux (see
+  # ring0/scripts/deploy-flux.sh and the file's own header comment).

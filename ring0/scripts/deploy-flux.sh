@@ -25,7 +25,9 @@ for var in \
 	BOOTSTRAP_ENDPOINT \
 	ANNOUNCEMENTS_IFACE \
 	GITHUB_ACTOR \
-	GHCR_TOKEN; do
+	GHCR_TOKEN \
+	TRUENAS_HOSTNAME \
+	TRUENAS_POOL; do
 	if [[ -z "${!var:-}" ]]; then
 		echo "ERROR: $var must be defined"
 		exit 1
@@ -211,6 +213,18 @@ spec:
             key: secretId
 STORE
 print_check "ClusterSecretStore openbao created"
+
+print_step "Creating truenas-csi-config ConfigMap"
+kubectl create namespace truenas-csi --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap truenas-csi-config \
+	--namespace truenas-csi \
+	--from-literal="truenasURL=wss://$TRUENAS_HOSTNAME.$TS_SUFFIX/api/current" \
+	--from-literal="truenasInsecure=true" \
+	--from-literal="defaultPool=$TRUENAS_POOL" \
+	--from-literal="nfsServer=$TRUENAS_HOSTNAME.$TS_SUFFIX" \
+	--from-literal="iscsiPortal=$TRUENAS_HOSTNAME.$TS_SUFFIX:3260" \
+	--dry-run=client -o yaml | kubectl apply -f -
+print_check "truenas-csi-config ConfigMap created"
 
 ################################################################################
 # Step 5 — Install Flux Operator via Helm

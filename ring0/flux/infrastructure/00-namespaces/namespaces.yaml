@@ -46,3 +46,10 @@ metadata:
   labels:
     kubernetes.io/metadata.name: tailscale
   name: tailscale
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  labels:
+    kubernetes.io/metadata.name: truenas-csi
+  name: truenas-csi
