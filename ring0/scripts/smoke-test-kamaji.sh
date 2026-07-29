@@ -77,8 +77,19 @@ kubectl apply -f "$MANIFEST"
 print_step "Waiting for TenantControlPlane to become Ready (timeout 300s)"
 elapsed=0
 timeout=300
+consecutive_get_failures=0
+max_consecutive_get_failures=3
 while true; do
-	status="$(kubectl -n "$NAMESPACE" get tcp "$TCP_NAME" -o jsonpath='{.status.kubernetesResources.version.status}' 2>/dev/null || true)"
+	if status="$(kubectl -n "$NAMESPACE" get tcp "$TCP_NAME" -o jsonpath='{.status.kubernetesResources.version.status}' 2>&1)"; then
+		consecutive_get_failures=0
+	else
+		consecutive_get_failures=$((consecutive_get_failures + 1))
+		if [[ $consecutive_get_failures -ge $max_consecutive_get_failures ]]; then
+			echo "ERROR: kubectl get tcp $TCP_NAME failed $consecutive_get_failures times in a row: $status"
+			exit 1
+		fi
+		status=""
+	fi
 	if [[ "$status" == "Ready" ]]; then
 		break
 	fi

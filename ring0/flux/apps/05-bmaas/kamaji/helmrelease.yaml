@@ -46,10 +46,6 @@ spec:
       # DataStore CR; the embedded subchart must stay disabled to avoid an
       # ownership conflict on the kamaji-etcd-client Service.
       deploy: false
-    etcd:
-      # Kept for compatibility with stable chart releases that still read
-      # this top-level key instead of kamaji-etcd.deploy.
-      deploy: false
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
