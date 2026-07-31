@@ -4,7 +4,7 @@ on:
     tags:
       - "v*.*.*"
 permissions:
-  contents: read
+  contents: write # create the GitHub Release
   packages: write
 jobs:
   release:
@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # git-cliff needs the full history and all tags to build the notes.
+          fetch-depth: 0
       - name: Install Flux CLI
         uses: fluxcd/flux2/action@v2.9.0
       - name: Login to GitHub Container Registry
@@ -40,3 +43,14 @@ jobs:
           flux pull artifact \
             "oci://ghcr.io/${{ github.repository }}:${{ github.ref_name }}" \
             --output /tmp/verify
+      - name: Generate release notes
+        id: git-cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --latest --strip header
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body: ${{ steps.git-cliff.outputs.content }}
