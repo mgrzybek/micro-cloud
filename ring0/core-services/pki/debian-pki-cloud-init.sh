@@ -49,6 +49,8 @@ function prepare() {
 	export HOME=/root
 	export pki=/var/lib/pki/files
 
+	chown openbao: "$pki/certificates/pki.$SUFFIX.pem" "$pki/certificates/pki.$SUFFIX-key.pem"
+
 	echo "#####################"
 	echo "👷 Configuring the netboot iface"
 
@@ -152,9 +154,7 @@ function configure_openbao() {
 	echo "👷 Configuring OpenBao"
 
 	local vault_addr
-	vault_addr="$(ip -4 addr show dev eth0 | awk '/inet/ {print $2}' | awk -F/ '{print $1}')"
-
-	chown openbao: "$pki/certificates/pki.$SUFFIX.pem" "$pki/certificates/pki.$SUFFIX-key.pem"
+	vault_addr="$(awk -F= '/SERVER_ADDR/ {print $2}' /etc/cloud.sh)"
 
 	cat >/etc/openbao/openbao.hcl <<OPENBAO_CONFIG
 ui = false
