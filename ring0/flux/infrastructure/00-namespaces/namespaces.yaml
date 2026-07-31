@@ -65,4 +65,10 @@ kind: Namespace
 metadata:
   labels:
     kubernetes.io/metadata.name: observability
+    # prometheus-node-exporter is privileged (hostNetwork, hostPID, hostPort,
+    # hostPath), so the namespace must run at the privileged Pod Security level;
+    # the cluster default (baseline) blocks it.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
   name: observability
