@@ -169,7 +169,7 @@ listener "tcp" {
   tls_key_file  = "$pki/certificates/pki.$SUFFIX-key.pem"
 }
 
-api_addr = "https://pki.$SUFFIX:8200"
+api_addr = "https://$vault_addr:8200"
 OPENBAO_CONFIG
 
 	chown openbao:openbao /etc/openbao/openbao.hcl
