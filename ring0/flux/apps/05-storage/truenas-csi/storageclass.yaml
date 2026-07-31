@@ -33,7 +33,7 @@ parameters:
   protocol: "iscsi"
   datasetPath: "csi/iscsi"
   compression: "LZ4"
-  fsType: "ext4"
+  csi.storage.k8s.io/fstype: "ext4"
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
 allowVolumeExpansion: true

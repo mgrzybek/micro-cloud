@@ -234,8 +234,12 @@ kubectl create configmap truenas-csi-config \
 	--dry-run=client -o yaml | kubectl apply -f -
 print_check "truenas-csi-config ConfigMap created"
 
+# StorageClass parameters are immutable, so `kubectl apply` fails (and aborts
+# this script under `set -e`) whenever datasetPath changes — which also skips
+# the truenas-iscsi block below. `replace --force` recreates the object instead;
+# deleting a StorageClass does not affect already-bound PVs/PVCs.
 print_step "Creating truenas-nfs StorageClass"
-kubectl apply -f - <<STORAGECLASS
+kubectl replace --force -f - <<STORAGECLASS
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -252,7 +256,7 @@ STORAGECLASS
 print_check "truenas-nfs StorageClass created"
 
 print_step "Creating truenas-iscsi StorageClass"
-kubectl apply -f - <<STORAGECLASS
+kubectl replace --force -f - <<STORAGECLASS
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -262,7 +266,7 @@ parameters:
   protocol: "iscsi"
   datasetPath: "$truenas_dataset_path"
   compression: "LZ4"
-  fsType: "ext4"
+  csi.storage.k8s.io/fstype: "ext4"
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
 allowVolumeExpansion: true
