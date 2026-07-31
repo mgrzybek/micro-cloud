@@ -166,7 +166,11 @@ spec:
         - name: iscsi-dir
           hostPath:
             path: /etc/iscsi
-            type: Directory
+            # On Talos the iscsi-tools extension runs iscsid in its own mount
+            # namespace, so /etc/iscsi is not visible at the host root and a
+            # strict Directory check fails. DirectoryOrCreate lets kubelet create
+            # the mount point; the driver talks to the host iscsid via nsenter.
+            type: DirectoryOrCreate
         - name: iscsi-lib
           hostPath:
             path: /var/lib/iscsi

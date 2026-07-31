@@ -52,6 +52,12 @@ kind: Namespace
 metadata:
   labels:
     kubernetes.io/metadata.name: truenas-csi
+    # The truenas-csi node DaemonSet is privileged (hostPath, hostPID,
+    # hostNetwork, privileged container), so the namespace must run at the
+    # privileged Pod Security level; the cluster default (baseline) blocks it.
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
   name: truenas-csi
 ---
 apiVersion: v1
