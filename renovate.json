@@ -18,7 +18,8 @@
     "description": "Image tags in the plain (non-Helm) manifests.",
     "fileMatch": [
       "^ring0/flux/apps/05-storage/truenas-csi/.+\\.yaml$",
-      "^ring0/flux/infrastructure/02-external-snapshotter/.+\\.yaml$"
+      "^ring0/flux/infrastructure/02-external-snapshotter/.+\\.yaml$",
+      "^ring0/flux/infrastructure/02-local-path-provisioner/local-path-storage\\.yaml$"
     ]
   },
   "customManagers": [
