@@ -130,14 +130,20 @@ function install_database() {
 function install_cmdb_api_gateway() {
 	print_milestone "Installing the api gateway used by the cmdb"
 
-	# First let's create the service without certificate to get the tailnet IP address
-	jinja2 --strict \
-		-D ip_address= -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
-		"$MANIFESTS_PATH/04-cmdb/api-gateway.yaml.j2" \
-		-o "$RING0_ROOT/dist/cmdb-api-gateway.yaml"
-	kubectl apply --wait -f "$RING0_ROOT/dist/cmdb-api-gateway.yaml"
+	if ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="cmdb")' >/dev/null 2>&1; then
+		print_step "First let's create the service without certificate to get the tailnet IP address"
+		jinja2 --strict \
+			-D ip_address= -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
+			"$MANIFESTS_PATH/04-cmdb/api-gateway.yaml.j2" \
+			-o "$RING0_ROOT/dist/cmdb-api-gateway.yaml"
+		kubectl apply --wait -f "$RING0_ROOT/dist/cmdb-api-gateway.yaml"
 
-	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
+		print_step "Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint"
+		while ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="cmdb")' >/dev/null 2>&1; do
+			sleep 5
+		done
+	fi
+
 	local svc_ip_addr
 	svc_ip_addr="$(tailscale status | awk '/\bcmdb\b/ {print $1}')"
 	jinja2 --strict \
@@ -150,14 +156,20 @@ function install_cmdb_api_gateway() {
 function install_idp_api_gateway() {
 	print_milestone "Installing the api gateway used by the idp"
 
-	# First let's create the service without certificate to get the tailnet IP address
-	jinja2 --strict \
-		-D ip_address= -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
-		"$MANIFESTS_PATH/03-idp/api-gateway.yaml.j2" \
-		-o "$RING0_ROOT/dist/idp-api-gateway.yaml"
-	kubectl apply --wait -f "$RING0_ROOT/dist/idp-api-gateway.yaml"
+	if ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="idp")' >/dev/null 2>&1; then
+		print_step "First let's create the service without certificate to get the tailnet IP address"
+		jinja2 --strict \
+			-D ip_address= -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
+			"$MANIFESTS_PATH/03-idp/api-gateway.yaml.j2" \
+			-o "$RING0_ROOT/dist/idp-api-gateway.yaml"
+		kubectl apply --wait -f "$RING0_ROOT/dist/idp-api-gateway.yaml"
 
-	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
+		print_step "Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint"
+		while ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="idp")' >/dev/null 2>&1; do
+			sleep 5
+		done
+	fi
+
 	local svc_ip_addr
 	svc_ip_addr="$(tailscale status | awk '/\bidp\b/ {print $1}')"
 	jinja2 --strict \

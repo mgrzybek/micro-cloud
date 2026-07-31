@@ -15,14 +15,20 @@ source "$RING0_ROOT/scripts/common.sh"
 function install_grafana_api_gateway() {
 	print_milestone "Installing the api gateway used by Grafana"
 
-	# First let's create the service without certificate to get the tailnet IP address
-	jinja2 --strict \
-		-D ip_address= -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
-		"$MANIFESTS_PATH/06-observability/api-gateway.yaml.j2" \
-		-o "$RING0_ROOT/dist/grafana-api-gateway.yaml"
-	kubectl apply --wait -f "$RING0_ROOT/dist/grafana-api-gateway.yaml"
+	if ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="grafana")' >/dev/null 2>&1; then
+		print_step "First let's create the service without certificate to get the tailnet IP address"
+		jinja2 --strict \
+			-D ip_address= -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
+			"$MANIFESTS_PATH/06-observability/api-gateway.yaml.j2" \
+			-o "$RING0_ROOT/dist/grafana-api-gateway.yaml"
+		kubectl apply --wait -f "$RING0_ROOT/dist/grafana-api-gateway.yaml"
 
-	# Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint
+		print_step "Then, get the tailnet IP address, create the certificate and configure the HTTPS endpoint"
+		while ! tailscale status --json | jq -e '.Peer[] | select(.HostName=="grafana")' >/dev/null 2>&1; do
+			sleep 5
+		done
+	fi
+
 	local svc_ip_addr
 	svc_ip_addr="$(tailscale status | awk '/\bgrafana\b/ {print $1}')"
 	jinja2 --strict \

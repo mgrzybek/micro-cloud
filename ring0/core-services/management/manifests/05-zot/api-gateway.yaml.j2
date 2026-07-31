@@ -23,8 +23,6 @@ spec:
   dnsNames:
     - registry.{{ts_suffix}}
     - registry
-  uris:
-    - spiffe://cluster.local/ns/default/sa/default
   ipAddresses:
     - {{tailscale_ip_address}}
   issuerRef:
@@ -55,8 +53,6 @@ spec:
   dnsNames:
     - registry.ring0
     - registry
-  uris:
-    - spiffe://cluster.local/ns/default/sa/default
   ipAddresses:
     - {{external_ip}}
   issuerRef:

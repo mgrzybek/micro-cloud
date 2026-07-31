@@ -289,6 +289,7 @@ From this point Flux manages the following components from the OCI artifact (`gh
 | `apps/05-bmaas/kamaji` | Kamaji | kamaji-system |
 | `apps/05-bmaas/tinkerbell` | Tinkerbell | tinkerbell-system |
 | `apps/05-storage/truenas-csi` | TrueNAS CSI driver | truenas-csi |
+| `apps/06-observability/postgres` | Grafana PostgreSQL backend (CNPG) | observability |
 | `apps/06-observability/victoria-metrics` | VictoriaMetrics stack + Grafana (metrics only) | observability |
 
 Monitor reconciliation with:
@@ -342,9 +343,10 @@ task observability
 
 This renders `manifests/06-observability/api-gateway.yaml.j2` in two passes (HTTP first to
 obtain the tailnet IP, then HTTPS with a cert-manager `Certificate`) and publishes Grafana at
-`https://grafana.<ts_suffix>`. The VictoriaMetrics single-node TSDB and Grafana are persisted on
-the `truenas-nfs` StorageClass, so their PVCs can be backed up with the `truenas-snapclass`
-`VolumeSnapshotClass`.
+`https://grafana.<ts_suffix>`. The VictoriaMetrics single-node TSDB is persisted on the
+`truenas-iscsi` (block) StorageClass — VictoriaMetrics does not support NFS — and Grafana stores
+its state in a dedicated CNPG PostgreSQL cluster (`grafana-db`) rather than SQLite. Both PVCs can
+be backed up with the `truenas-snapclass` `VolumeSnapshotClass`.
 
 > [!NOTE]
 > Logs (VictoriaLogs), traces (VictoriaTraces), alerting (vmalert/Alertmanager) and Grafana SSO
@@ -400,14 +402,34 @@ export VAULT_TOKEN="$(cat dist/openbao-root.token)"
 bao kv put secret/truenas-csi api-key=<your-truenas-api-key>
 ```
 
-The `truenas-csi-config` ConfigMap and the `truenas-nfs` StorageClass are also
-excluded from Flux: `truenasURL`/`nfsServer` depend on `ts_suffix` and
-`datasetPath` depends on `TRUENAS_POOL`, both resolved only at deploy time.
-`task flux` creates them imperatively from `TRUENAS_HOSTNAME`/`TRUENAS_POOL`
-(see [deploy-flux.sh](scripts/deploy-flux.sh)); re-run it whenever these
-values change. `TRUENAS_POOL` must be the full ZFS dataset path (e.g.
-`pool1/csi/nfs`), used verbatim as the StorageClass's `datasetPath` — do not
-just pass the pool name.
+The `truenas-csi-config` ConfigMap and the `truenas-nfs` / `truenas-iscsi`
+StorageClasses are also excluded from Flux: `truenasURL`/`nfsServer` depend on
+`ts_suffix` and `datasetPath` depends on `TRUENAS_POOL`, both resolved only at
+deploy time. `task flux` creates them imperatively from
+`TRUENAS_HOSTNAME`/`TRUENAS_POOL` (see [deploy-flux.sh](scripts/deploy-flux.sh));
+re-run it whenever these values change. `TRUENAS_POOL` must be the full ZFS
+dataset path (e.g. `pool1/csi/nfs`), used verbatim as the StorageClass's
+`datasetPath` — do not just pass the pool name.
+
+Two StorageClasses are provisioned:
+
+- **`truenas-nfs`** — file storage over NFS, RWX-capable, default for general PVCs.
+- **`truenas-iscsi`** — block storage over iSCSI, required by databases and by
+  VictoriaMetrics (which does not support NFS). It has two prerequisites:
+  1. **TrueNAS**: enable the iSCSI service and a portal reachable at
+     `$TRUENAS_HOSTNAME.$TS_SUFFIX:3260` (already wired as `iscsiPortal` in the
+     `truenas-csi-config` ConfigMap).
+  2. **Talos nodes**: the `siderolabs/iscsi-tools` extension must be baked into
+     the installer image. Regenerate the factory image at
+     [factory.talos.dev](https://factory.talos.dev) with `iscsi-tools` added to
+     the existing extensions (`tailscale`, `lldpd`), update `TALOS_FACTORY_UUID`
+     (and `WORKER_TALOS_FACTORY_UUID`), then upgrade the node:
+
+     ```shell
+     task upgrade-management   # talosctl upgrade — reboots the (single) node
+     ```
+
+     Verify with `talosctl -n <node> get extensions | grep iscsi-tools`.
 
 ## Releasing a new version
 

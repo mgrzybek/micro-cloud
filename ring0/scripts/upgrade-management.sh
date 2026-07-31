@@ -27,15 +27,28 @@ if [[ -z "${TALOS_FACTORY_URL:-}" ]]; then
 	exit 1
 fi
 
+function upgrade() {
+	local machine=$1
+
+	print_step "Current version of $machine"
+	talosctl --talosconfig="$RING0_ROOT/dist/talosconfig" -e "$machine" -n "$machine" version
+
+	print_step "Upgrading…"
+	talosctl --talosconfig="$RING0_ROOT/dist/talosconfig" -e "$machine" -n "$machine" upgrade \
+		--drain=false \
+		--reboot-mode powercycle \
+		--image "$TALOS_FACTORY_URL/metal-installer/$TALOS_FACTORY_UUID:$TALOS_VERSION"
+
+	print_step "Version after upgrade"
+	talosctl --talosconfig="$RING0_ROOT/dist/talosconfig" -e "$machine" -n "$machine" version
+}
+
 print_milestone "Upgrading the management node to Talos $TALOS_VERSION"
 
-print_step "Current version"
-talosctl --talosconfig="$RING0_ROOT/dist/talosconfig" -e management -n management version
+for cp in $(kubectl get nodes | grep control-plane | awk '{print $1}'); do
+	upgrade "$cp"
+done
 
-print_step "Upgrading…"
-talosctl --talosconfig="$RING0_ROOT/dist/talosconfig" -e management -n management upgrade \
-	--reboot-mode powercycle \
-	--image "$TALOS_FACTORY_URL/metal-installer/$TALOS_FACTORY_UUID:$TALOS_VERSION"
-
-print_step "Version after upgrade"
-talosctl --talosconfig="$RING0_ROOT/dist/talosconfig" -e management -n management version
+for worker in $(kubectl get nodes | grep none | awk '{print $1}'); do
+	upgrade "$worker"
+done
