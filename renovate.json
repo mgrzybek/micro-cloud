@@ -1,0 +1,55 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    "schedule:weekly"
+  ],
+  "timezone": "Europe/Paris",
+  "semanticCommits": "enabled",
+  "dependencyDashboard": true,
+  "flux": {
+    "fileMatch": ["^ring0/flux/.+\\.ya?ml$"]
+  },
+  "pre-commit": {
+    "enabled": true
+  },
+  "kubernetes": {
+    "description": "Image tags in the plain (non-Helm) manifests.",
+    "fileMatch": [
+      "^ring0/flux/apps/05-storage/truenas-csi/.+\\.yaml$",
+      "^ring0/flux/infrastructure/02-external-snapshotter/.+\\.yaml$"
+    ]
+  },
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Gateway API CRDs version applied by the bootstrap script.",
+      "fileMatch": ["^ring0/scripts/management/install-platform-management\\.sh$"],
+      "matchStrings": ["gw_api_version=(?<currentValue>v[0-9][^\\s\"]*)"],
+      "depNameTemplate": "kubernetes-sigs/gateway-api",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "description": "Rancher local-path-provisioner version applied by the bootstrap script.",
+      "fileMatch": ["^ring0/scripts/management/install-platform-management\\.sh$"],
+      "matchStrings": ["PROVISIONER_VERSION=(?<currentValue>v[0-9][^\\s\"]*)"],
+      "depNameTemplate": "rancher/local-path-provisioner",
+      "datasourceTemplate": "github-releases"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Kamaji is intentionally pinned to a rolling edge build (0.0.0+latest / *-edge).",
+      "matchManagers": ["flux"],
+      "matchPackageNames": ["kamaji"],
+      "enabled": false
+    },
+    {
+      "description": "Group the sig-storage CSI sidecar images into a single PR.",
+      "matchPackageNames": ["registry.k8s.io/sig-storage/**"],
+      "groupName": "csi sidecars"
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+# git-cliff configuration — https://git-cliff.org
+# Generates a Keep a Changelog-formatted CHANGELOG.md and GitHub Release notes
+# from the Conventional Commits already enforced by commitlint.
+
+[changelog]
+# Emitted once at the top of CHANGELOG.md.
+header = """
+# Changelog
+
+All notable changes to this project are documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+> Pre-releases `v0.0.1`–`v0.0.10` (2026-07-22) predate this changelog and are not
+> itemised here — see the [git tags](https://github.com/mgrzybek/micro-cloud/tags).
+
+"""
+# Rendered once per release. Tera template.
+body = """
+{% if version %}\
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else %}\
+## [Unreleased]
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}
+- {{ commit.message | split(pat="\n") | first | upper_first | trim }}\
+{% endfor %}
+{% endfor %}\n
+"""
+trim = true
+footer = ""
+# Turn `(#123)` PR references into links.
+postprocessors = [
+  { pattern = '\(#([0-9]+)\)', replace = "([#${1}](https://github.com/mgrzybek/micro-cloud/issues/${1}))" },
+]
+
+[git]
+conventional_commits = true
+# Keep unconventional commits visible (bucketed as Miscellaneous) rather than
+# silently dropping them — the pre-v0.1.0 history is only partly conventional.
+filter_unconventional = false
+filter_commits = false
+protect_breaking_commits = true
+tag_pattern = "v[0-9]*"
+sort_commits = "newest"
+topo_order = false
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
+  { message = "^docs?", group = "<!-- 2 -->Documentation" },
+  { message = "^perf", group = "<!-- 3 -->Performance" },
+  { message = "^refactor", group = "<!-- 4 -->Refactoring" },
+  { message = "^chore\\(release\\):", skip = true },
+  { message = "^chore\\(deps", skip = true },
+  { message = "^style|^test", skip = true },
+  { message = "^Merge branch", skip = true },
+  { message = ".*", group = "<!-- 5 -->Miscellaneous" },
+]
