@@ -96,7 +96,11 @@ spec:
           args:
             - "--csi-address=$(ADDRESS)"
             - "--v=5"
-            - "--feature-gates=Topology=true"
+            # truenas-csi v1.1 removed pool-based node topology, so the node
+            # driver advertises no topology keys. With Topology=true the
+            # provisioner fails Immediate-bound PVCs ("no available topology
+            # found"); keep it disabled to match the driver.
+            - "--feature-gates=Topology=false"
             - "--extra-create-metadata"
             - "--leader-election=true"
             - "--default-fstype=ext4"

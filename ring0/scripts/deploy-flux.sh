@@ -214,20 +214,32 @@ spec:
 STORE
 print_check "ClusterSecretStore openbao created"
 
+# The truenas-csi v1.1+ schema splits pool and dataset: defaultPool is the ZFS
+# pool name alone, while the StorageClass datasetPath is the parent path
+# relative to that pool (no pool prefix). TRUENAS_POOL stays the full dataset
+# path (e.g. pool1/csi/nfs); split it into "pool1" and "csi/nfs" here.
+truenas_default_pool="${TRUENAS_POOL%%/*}"
+truenas_dataset_path=""
+[[ "$TRUENAS_POOL" == */* ]] && truenas_dataset_path="${TRUENAS_POOL#*/}"
+
 print_step "Creating truenas-csi-config ConfigMap"
 kubectl create namespace truenas-csi --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap truenas-csi-config \
 	--namespace truenas-csi \
 	--from-literal="truenasURL=wss://$TRUENAS_HOSTNAME.$TS_SUFFIX/api/current" \
 	--from-literal="truenasInsecure=true" \
-	--from-literal="defaultPool=$TRUENAS_POOL" \
+	--from-literal="defaultPool=$truenas_default_pool" \
 	--from-literal="nfsServer=$TRUENAS_HOSTNAME.$TS_SUFFIX" \
 	--from-literal="iscsiPortal=$TRUENAS_HOSTNAME.$TS_SUFFIX:3260" \
 	--dry-run=client -o yaml | kubectl apply -f -
 print_check "truenas-csi-config ConfigMap created"
 
+# StorageClass parameters are immutable, so `kubectl apply` fails (and aborts
+# this script under `set -e`) whenever datasetPath changes — which also skips
+# the truenas-iscsi block below. `replace --force` recreates the object instead;
+# deleting a StorageClass does not affect already-bound PVs/PVCs.
 print_step "Creating truenas-nfs StorageClass"
-kubectl apply -f - <<STORAGECLASS
+kubectl replace --force -f - <<STORAGECLASS
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -235,7 +247,7 @@ metadata:
 provisioner: csi.truenas.io
 parameters:
   protocol: "nfs"
-  datasetPath: "$TRUENAS_POOL"
+  datasetPath: "$truenas_dataset_path"
   compression: "LZ4"
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
@@ -244,7 +256,7 @@ STORAGECLASS
 print_check "truenas-nfs StorageClass created"
 
 print_step "Creating truenas-iscsi StorageClass"
-kubectl apply -f - <<STORAGECLASS
+kubectl replace --force -f - <<STORAGECLASS
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -252,9 +264,9 @@ metadata:
 provisioner: csi.truenas.io
 parameters:
   protocol: "iscsi"
-  datasetPath: "$TRUENAS_POOL"
+  datasetPath: "$truenas_dataset_path"
   compression: "LZ4"
-  fsType: "ext4"
+  csi.storage.k8s.io/fstype: "ext4"
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
 allowVolumeExpansion: true

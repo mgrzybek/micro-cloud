@@ -1,7 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+# local-path-storage.yaml is vendored from the upstream `deploy/` directory at
+# tag v0.0.36 (see its header). It replaces the former remote base
+# `github.com/rancher/local-path-provisioner/deploy?ref=v0.0.36`, whose live git
+# fetch intermittently timed out and stalled Flux builds.
 resources:
-  - github.com/rancher/local-path-provisioner/deploy?ref=v0.0.36
+  - local-path-storage.yaml
 patches:
   - path: local-path-config-patch.yaml
     target:

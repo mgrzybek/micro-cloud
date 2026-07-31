@@ -49,6 +49,8 @@ function prepare() {
 	export HOME=/root
 	export pki=/var/lib/pki/files
 
+	chown openbao: "$pki/certificates/pki.$SUFFIX.pem" "$pki/certificates/pki.$SUFFIX-key.pem"
+
 	echo "#####################"
 	echo "👷 Configuring the netboot iface"
 
@@ -66,7 +68,8 @@ ExecStart=/bin/bash -c "if ! ip addr show | grep -q $SERVER_CIDR ; then ip addr 
 WantedBy=multi-user.target
 EOF
 
-	systemctl enable bootstrap-network.service
+	systemctl daemon-reload
+	systemctl enable --now bootstrap-network.service
 
 }
 
@@ -151,9 +154,7 @@ function configure_openbao() {
 	echo "👷 Configuring OpenBao"
 
 	local vault_addr
-	vault_addr="$(ip -4 addr show dev eth0 | awk '/inet/ {print $2}' | awk -F/ '{print $1}')"
-
-	chown openbao: "$pki/certificates/pki.$SUFFIX.pem" "$pki/certificates/pki.$SUFFIX-key.pem"
+	vault_addr="$(awk -F= '/SERVER_ADDR/ {print $2}' /etc/cloud.sh)"
 
 	cat >/etc/openbao/openbao.hcl <<OPENBAO_CONFIG
 ui = false
@@ -168,7 +169,7 @@ listener "tcp" {
   tls_key_file  = "$pki/certificates/pki.$SUFFIX-key.pem"
 }
 
-api_addr = "https://pki.$SUFFIX:8200"
+api_addr = "https://$vault_addr:8200"
 OPENBAO_CONFIG
 
 	chown openbao:openbao /etc/openbao/openbao.hcl

@@ -49,7 +49,11 @@ export TS_SUFFIX
 
 PKI_IPADDR="$(incus list | awk '/pki/ {print $6}')"
 export PKI_IPADDR
-PKI_ENDPOINT="https://$PKI_IPADDR:8200"
+# In-cluster consumers (ESO ClusterSecretStore, cert-manager ClusterIssuer) reach
+# OpenBao over the bootstrap network (pki's eth1); the default-bridge eth0 IP
+# ($PKI_IPADDR) is not routable from the management cluster pods. Fall back to the
+# eth0 IP when the bootstrap address is not set.
+PKI_ENDPOINT="https://${PKI_BOOTSTRAP_SERVER_ADDR:-$PKI_IPADDR}:8200"
 export PKI_ENDPOINT
 
 BOOTSTRAP_IPADDR="$(incus list | awk '/bootstrap/ {print $6}')"

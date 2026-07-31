@@ -207,7 +207,8 @@ function create_pki_csr() {
 {
   "CN": "$INSTANCE.$SUFFIX",
   "hosts": [
-    "$hosts"
+    "$hosts",
+    "$PKI_BOOTSTRAP_SERVER_ADDR"
   ],
   "names": [
     {
@@ -245,12 +246,11 @@ function stop_multirootca() {
 }
 
 function _bao() {
-	local root_token vault_addr
-	vault_addr="$(incus exec pki -- ip -4 addr show dev eth0 </dev/null | awk '/inet/ {print $2}' | awk -F/ '{print $1}')"
+	local root_token
 
 	root_token="$(cat "$RING0_ROOT/dist/openbao-root.token")"
 	incus exec pki \
-		--env VAULT_ADDR="https://$vault_addr:8200" \
+		--env VAULT_ADDR="https://$PKI_BOOTSTRAP_SERVER_ADDR:8200" \
 		--env VAULT_CACERT="$PKI_ROOT/files/intermediate/bundle.crt" \
 		--env VAULT_TOKEN="$root_token" \
 		-- bao "$@"
@@ -259,11 +259,8 @@ function _bao() {
 function init_openbao() {
 	print_milestone "Initializing OpenBao"
 
-	local vault_addr
-	vault_addr="$(incus exec pki -- ip -4 addr show dev eth0 | awk '/inet/ {print $2}' | awk -F/ '{print $1}')"
-
 	if ! incus exec pki -- grep -q VAULT_ADDR /etc/profile; then
-		incus exec pki -- bash -c "echo VAULT_ADDR=https://$vault_addr:8200 >> /etc/profile"
+		incus exec pki -- bash -c "echo VAULT_ADDR=https://$PKI_BOOTSTRAP_SERVER_ADDR:8200 >> /etc/profile"
 		incus exec pki -- bash -c "echo VAULT_CACERT=$PKI_ROOT/files/intermediate/bundle.crt >> /etc/profile"
 	fi
 
@@ -273,7 +270,7 @@ function init_openbao() {
 	fi
 	sleep 3
 
-	if incus exec pki --env VAULT_ADDR="https://$vault_addr:8200" --env VAULT_CACERT="$PKI_ROOT/files/intermediate/bundle.crt" -- bash -c "bao status -format=json 2>/dev/null | jq -r '.initialized' | grep false"; then
+	if incus exec pki --env VAULT_ADDR="https://$PKI_BOOTSTRAP_SERVER_ADDR:8200" --env VAULT_CACERT="$PKI_ROOT/files/intermediate/bundle.crt" -- bash -c "bao status -format=json 2>/dev/null | jq -r '.initialized' | grep false"; then
 		print_milestone "Running OpenBao init"
 
 		incus exec pki -- mkdir -p /var/lib/openbao
@@ -281,7 +278,7 @@ function init_openbao() {
 
 		local init_output
 		init_output="$(incus exec pki \
-			--env "VAULT_ADDR=https://$vault_addr:8200" \
+			--env "VAULT_ADDR=https://$PKI_BOOTSTRAP_SERVER_ADDR:8200" \
 			--env "VAULT_CACERT=$PKI_ROOT/files/intermediate/bundle.crt" \
 			-- bao operator init -key-shares=1 -key-threshold=1 -format=json)"
 
@@ -294,7 +291,7 @@ function init_openbao() {
 
 	local sealed
 	sealed="$(incus exec pki \
-		--env VAULT_ADDR="https://$vault_addr:8200" \
+		--env VAULT_ADDR="https://$PKI_BOOTSTRAP_SERVER_ADDR:8200" \
 		--env VAULT_CACERT="$PKI_ROOT/files/intermediate/bundle.crt" \
 		-- bash -c "bao status -format=json 2>/dev/null | jq -r '.sealed'")"
 
@@ -302,7 +299,7 @@ function init_openbao() {
 		local unseal_key
 		unseal_key="$(cat "$RING0_ROOT/dist/openbao-unseal.key")"
 		incus exec pki \
-			--env VAULT_ADDR="https://$vault_addr:8200" \
+			--env VAULT_ADDR="https://$PKI_BOOTSTRAP_SERVER_ADDR:8200" \
 			--env VAULT_CACERT="$PKI_ROOT/files/intermediate/bundle.crt" \
 			-- bao operator unseal "$unseal_key"
 	fi
