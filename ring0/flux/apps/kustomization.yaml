@@ -6,3 +6,4 @@ resources:
   - 04-cmdb
   - 05-bmaas
   - 05-storage
+  - 06-observability

@@ -243,6 +243,24 @@ allowVolumeExpansion: true
 STORAGECLASS
 print_check "truenas-nfs StorageClass created"
 
+print_step "Creating truenas-iscsi StorageClass"
+kubectl apply -f - <<STORAGECLASS
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: truenas-iscsi
+provisioner: csi.truenas.io
+parameters:
+  protocol: "iscsi"
+  datasetPath: "$TRUENAS_POOL"
+  compression: "LZ4"
+  fsType: "ext4"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+STORAGECLASS
+print_check "truenas-iscsi StorageClass created"
+
 ################################################################################
 # Step 5 — Install Flux Operator via Helm
 

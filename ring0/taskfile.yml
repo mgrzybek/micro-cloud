@@ -102,6 +102,10 @@ tasks:
     desc: Deploy the CMDB Tailscale API gateway (Netbox itself is deployed by Flux)
     cmd: bash ./scripts/deploy-cmdb.sh
 
+  observability:
+    desc: Deploy the Grafana Tailscale API gateway (VictoriaMetrics stack itself is deployed by Flux)
+    cmd: bash ./scripts/deploy-observability.sh
+
   configure-oidc:
     desc: Configure OIDC auth on the management cluster's kube-apiserver using Authentik (run after task idp)
     preconditions:
@@ -215,6 +219,17 @@ tasks:
 ##
 ## Day 2 operations
 ##
+  upgrade-management:
+    desc: Upgrade the management cluster (Talos Linux)
+    preconditions:
+      - sh: test -n "${TALOS_FACTORY_URL:-}"
+        msg: TALOS_FACTORY_URL must be defined
+      - sh: test -n "${TALOS_VERSION:-}"
+        msg: TALOS_VERSION must be defined
+      - sh: test -n "${TALOS_FACTORY_UUID:-}"
+        msg: TALOS_FACTORY_UUID must be defined
+    cmd: bash ./scripts/upgrade-management.sh
+
   update-flatcar-repo:
     desc: Download the latest version of Flatcar Linux artifacts and set the current symlink
     cmd: cat ./core-services/bootstrap/update-flatcar-repo.sh | incus exec bootstrap bash --

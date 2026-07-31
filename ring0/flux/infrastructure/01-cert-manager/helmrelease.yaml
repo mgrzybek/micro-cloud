@@ -12,6 +12,10 @@ spec:
         kind: HelmRepository
         name: jetstack
         namespace: flux-system
+  # servicemonitor below requires the monitoring.coreos.com CRDs.
+  dependsOn:
+    - name: prometheus-operator-crds
+      namespace: flux-system
   install:
     crds: CreateReplace
   upgrade:
@@ -21,3 +25,10 @@ spec:
       enabled: true
     extraArgs:
       - --enable-gateway-api
+    # Let the VictoriaMetrics operator discover cert-manager metrics.
+    # prometheus.enabled defaults to true; podmonitor and servicemonitor are
+    # mutually exclusive, so only the ServiceMonitor is turned on here.
+    prometheus:
+      enabled: true
+      servicemonitor:
+        enabled: true

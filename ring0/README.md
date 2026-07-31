@@ -71,6 +71,7 @@ Enterprise_Boundary(ring0, "Ring 0") {
             Component(dcim, "CMDB", "helm, netbox")
             Component(deployment, "Platform deployer", "helm, kamaji, kamaji")
             Component(csi, "Storage CSI driver", "kustomize, truenas-csi", "Provisions PVs from an external TrueNAS over NFS.")
+            Component(observability, "Observability", "helm, victoria-metrics, grafana", "Collects cluster metrics and serves Grafana dashboards.")
         }
     }
 }
@@ -80,6 +81,8 @@ System_Ext(truenas, "TrueNAS", "ZFS storage appliance")
 Rel(openbao, issuer, "Provides certificates")
 Rel(tailscale, id, "Connects to the SDN")
 Rel(tailscale, dcim, "Connects to the SDN")
+Rel(tailscale, observability, "Connects to the SDN")
+Rel(observability, csi, "Persists metrics on NFS PVs")
 Rel(csi, truenas, "Provisions NFS volumes via the Websocket API")
 BiRel(mesh, tailscale, "Is connected")
 BiRel(mesh, truenas, "Is connected")
@@ -272,12 +275,14 @@ From this point Flux manages the following components from the OCI artifact (`gh
 
 | Flux path | Component | Namespace |
 | --- | --- | --- |
+| `infrastructure/00-prometheus-operator-crds` | `monitoring.coreos.com` CRDs (ServiceMonitor/PodMonitor) | flux-system |
 | `infrastructure/01-cilium` | Cilium CNI | kube-system |
 | `infrastructure/01-cert-manager` | cert-manager | cert-manager |
 | `infrastructure/02-cnpg-operator` | CloudNative PG operator | cnpg-system |
 | `infrastructure/02-pg-cluster` | PostgreSQL cluster | platform-management |
 | `infrastructure/02-tailscale-operator` | Tailscale Operator | tailscale |
 | `infrastructure/02-external-snapshotter` | CSI VolumeSnapshot CRDs + controller | kube-system |
+| `infrastructure/03-metrics-server` | metrics-server (`kubectl top` / HPA) | kube-system |
 | `apps/03-idp` | Authentik (IDP) | platform-management |
 | `apps/04-cmdb` | Netbox (CMDB) | platform-management |
 | `apps/04-eso` | External Secrets Operator | external-secrets |
@@ -285,6 +290,8 @@ From this point Flux manages the following components from the OCI artifact (`gh
 | `apps/05-bmaas/kamaji` | Kamaji | kamaji-system |
 | `apps/05-bmaas/tinkerbell` | Tinkerbell | tinkerbell-system |
 | `apps/05-storage/truenas-csi` | TrueNAS CSI driver | truenas-csi |
+| `apps/06-observability/postgres` | Grafana PostgreSQL backend (CNPG) | observability |
+| `apps/06-observability/victoria-metrics` | VictoriaMetrics stack + Grafana (metrics only) | observability |
 
 Monitor reconciliation with:
 
@@ -322,6 +329,45 @@ task cmdb
 
 > [!WARNING]
 > Installing Netbox can be quite long because of the database initialization.
+
+### Exposing the Grafana service
+
+The observability stack (VictoriaMetrics + Grafana, metrics only) is deployed by Flux
+in the `observability` namespace. Once the `grafana` service exists, expose it on the
+tailnet with the same Gateway API + Tailscale pattern used for the IDP and CMDB:
+
+```shell
+export PKI_ORG=xxxxx   # same value used when bootstrapping the PKI
+
+task observability
+```
+
+This renders `manifests/06-observability/api-gateway.yaml.j2` in two passes (HTTP first to
+obtain the tailnet IP, then HTTPS with a cert-manager `Certificate`) and publishes Grafana at
+`https://grafana.<ts_suffix>`. The VictoriaMetrics single-node TSDB is persisted on the
+`truenas-iscsi` (block) StorageClass — VictoriaMetrics does not support NFS — and Grafana stores
+its state in a dedicated CNPG PostgreSQL cluster (`grafana-db`) rather than SQLite. Both PVCs can
+be backed up with the `truenas-snapclass` `VolumeSnapshotClass`.
+
+> [!NOTE]
+> Logs (VictoriaLogs), traces (VictoriaTraces), alerting (vmalert/Alertmanager) and Grafana SSO
+> via Authentik are intentionally out of scope for this iteration and can be added later.
+
+#### Metrics discovery across all middlewares
+
+Every Helm chart that supports it enables its `ServiceMonitor`/`PodMonitor` option (Cilium — agent,
+operator, envoy and Hubble —, cert-manager, CloudNativePG operator and both PostgreSQL clusters,
+metrics-server, External Secrets, Authentik, Netbox, Zot, Kamaji, Kamaji-etcd and Grafana). The
+VictoriaMetrics operator watches these `monitoring.coreos.com` objects cluster-wide and converts them
+into its own `VMServiceScrape`/`VMPodScrape` resources, which `vmagent` scrapes
+(`selectAllByDefault: true`).
+
+Those CRDs are **not** shipped by the VictoriaMetrics chart — the operator only converts
+pre-existing objects — so they are installed early as `infrastructure/00-prometheus-operator-crds`
+(chart `prometheus-community/prometheus-operator-crds`). Charts that render a `ServiceMonitor`
+inside the `infrastructure` Kustomization (Cilium, cert-manager, CNPG, metrics-server) declare a
+`dependsOn` on that release; the `apps` charts are already ordered after `infrastructure` via the
+Kustomization `dependsOn`.
 
 ### Configuring OIDC for the management cluster
 
@@ -373,14 +419,34 @@ export VAULT_TOKEN="$(cat dist/openbao-root.token)"
 bao kv put secret/truenas-csi api-key=<your-truenas-api-key>
 ```
 
-The `truenas-csi-config` ConfigMap and the `truenas-nfs` StorageClass are also
-excluded from Flux: `truenasURL`/`nfsServer` depend on `ts_suffix` and
-`datasetPath` depends on `TRUENAS_POOL`, both resolved only at deploy time.
-`task flux` creates them imperatively from `TRUENAS_HOSTNAME`/`TRUENAS_POOL`
-(see [deploy-flux.sh](scripts/deploy-flux.sh)); re-run it whenever these
-values change. `TRUENAS_POOL` must be the full ZFS dataset path (e.g.
-`pool1/csi/nfs`), used verbatim as the StorageClass's `datasetPath` — do not
-just pass the pool name.
+The `truenas-csi-config` ConfigMap and the `truenas-nfs` / `truenas-iscsi`
+StorageClasses are also excluded from Flux: `truenasURL`/`nfsServer` depend on
+`ts_suffix` and `datasetPath` depends on `TRUENAS_POOL`, both resolved only at
+deploy time. `task flux` creates them imperatively from
+`TRUENAS_HOSTNAME`/`TRUENAS_POOL` (see [deploy-flux.sh](scripts/deploy-flux.sh));
+re-run it whenever these values change. `TRUENAS_POOL` must be the full ZFS
+dataset path (e.g. `pool1/csi/nfs`), used verbatim as the StorageClass's
+`datasetPath` — do not just pass the pool name.
+
+Two StorageClasses are provisioned:
+
+- **`truenas-nfs`** — file storage over NFS, RWX-capable, default for general PVCs.
+- **`truenas-iscsi`** — block storage over iSCSI, required by databases and by
+  VictoriaMetrics (which does not support NFS). It has two prerequisites:
+  1. **TrueNAS**: enable the iSCSI service and a portal reachable at
+     `$TRUENAS_HOSTNAME.$TS_SUFFIX:3260` (already wired as `iscsiPortal` in the
+     `truenas-csi-config` ConfigMap).
+  2. **Talos nodes**: the `siderolabs/iscsi-tools` extension must be baked into
+     the installer image. Regenerate the factory image at
+     [factory.talos.dev](https://factory.talos.dev) with `iscsi-tools` added to
+     the existing extensions (`tailscale`, `lldpd`), update `TALOS_FACTORY_UUID`
+     (and `WORKER_TALOS_FACTORY_UUID`), then upgrade the node:
+
+     ```shell
+     task upgrade-management   # talosctl upgrade — reboots the (single) node
+     ```
+
+     Verify with `talosctl -n <node> get extensions | grep iscsi-tools`.
 
 ## Releasing a new version
 

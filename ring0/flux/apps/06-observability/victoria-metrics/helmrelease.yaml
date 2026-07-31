@@ -1,0 +1,112 @@
+# Metrics-only observability stack (VictoriaMetrics). Logs (VictoriaLogs) and
+# traces (VictoriaTraces) are intentionally out of scope for this iteration.
+# Alerting (vmalert + alertmanager) is disabled for now.
+# Grafana is exposed via the Cilium Gateway API + Tailscale annotations created
+# imperatively by scripts/deploy-observability.sh (task observability), not via
+# the chart ingress — hence grafana.ingress.enabled: false.
+# Grafana stores its state in the dedicated CNPG cluster grafana-db (see the
+# postgres/ kustomization), not SQLite — hence grafana.persistence.enabled: false.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: victoria-metrics-k8s-stack
+  namespace: observability
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: victoria-metrics-k8s-stack
+      sourceRef:
+        kind: HelmRepository
+        name: victoria-metrics
+        namespace: flux-system
+  values:
+    # Single-node TSDB persisted on the TrueNAS CSI over iSCSI (block storage:
+    # VictoriaMetrics does not support NFS). Snapshottable via the
+    # truenas-snapclass VolumeSnapshotClass for backups.
+    vmsingle:
+      spec:
+        retentionPeriod: "30d"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+        storage:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: truenas-iscsi
+          resources:
+            requests:
+              storage: 20Gi
+    vmagent:
+      spec:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+    # No alerting this iteration.
+    vmalert:
+      enabled: false
+    alertmanager:
+      enabled: false
+    # Operator and metrics sources — bounded on this small, memory-tight cluster.
+    victoria-metrics-operator:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 128Mi
+        limits:
+          memory: 256Mi
+    kube-state-metrics:
+      enabled: true
+      resources:
+        requests:
+          cpu: 25m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+    prometheus-node-exporter:
+      enabled: true
+      resources:
+        requests:
+          cpu: 25m
+          memory: 32Mi
+        limits:
+          memory: 64Mi
+    grafana:
+      enabled: true
+      # Stable service name "grafana" for the HTTPRoute backendRef.
+      fullnameOverride: grafana
+      # Scrape Grafana's own metrics via the VictoriaMetrics operator.
+      serviceMonitor:
+        enabled: true
+      # State lives in PostgreSQL (grafana-db), so no SQLite PVC is needed.
+      persistence:
+        enabled: false
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          memory: 256Mi
+      # Point Grafana at the dedicated CNPG cluster in this namespace. CNPG
+      # enforces TLS, hence ssl_mode: require. The password comes from the
+      # CNPG-generated grafana-db-app Secret (basic-auth), read locally.
+      grafana.ini:
+        database:
+          type: postgres
+          host: grafana-db-rw:5432
+          name: grafana
+          user: grafana
+          ssl_mode: require
+      envValueFrom:
+        GF_DATABASE_PASSWORD:
+          secretKeyRef:
+            name: grafana-db-app
+            key: password
+      ingress:
+        enabled: false

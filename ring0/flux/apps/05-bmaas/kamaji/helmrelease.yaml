@@ -32,6 +32,9 @@ spec:
               - op: remove
                 path: /spec/template/spec/containers/0/command
   values:
+    # Let the VictoriaMetrics operator discover the Kamaji controller metrics.
+    serviceMonitor:
+      enabled: true
     image:
       # Pin to a specific "edge" build: 0.0.0+latest (the chart) and the
       # controller image are versioned independently upstream, so the chart
@@ -68,3 +71,14 @@ spec:
     datastore:
       enabled: true
       name: microcloud
+    # Expose the etcd metrics endpoint (plain HTTP on the client service's
+    # "metrics" port) via a ServiceMonitor the VictoriaMetrics operator converts
+    # into a VMServiceScrape. Drop the chart's default kube-prometheus-stack
+    # label so the object isn't mislabelled for a stack we don't run.
+    # The chart also renders a Role/RoleBinding toward its default
+    # kube-prometheus-stack ServiceAccount; that RBAC is inert here (vmagent
+    # scrapes with its own ServiceAccount and the endpoint needs no auth) and the
+    # chart offers no switch to disable it, so it is intentionally left as-is.
+    serviceMonitor:
+      enabled: true
+      labels: {}

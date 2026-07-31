@@ -83,6 +83,7 @@ function prepare() {
 	helm repo add cnpg https://cloudnative-pg.github.io/charts
 	helm repo add authentik https://charts.goauthentik.io
 	helm repo add clastix https://clastix.github.io/charts
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo update
 }
 

@@ -16,6 +16,12 @@ spec:
         namespace: flux-system
   values:
     defaultLanguage: fr-fr
+    # Enable the NetBox /metrics endpoint and let the VictoriaMetrics operator
+    # discover it through a ServiceMonitor.
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
     # No StorageClass is marked default on this cluster; pin explicitly.
     persistence:
       storageClass: local-path

@@ -3,16 +3,16 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: idp-endpoint
-  namespace: platform-management
+  name: grafana-endpoint
+  namespace: observability
 spec:
-  secretName: idp-endpoint
+  secretName: grafana-endpoint
   duration: 2160h # 90d
   renewBefore: 360h # 15d
   subject:
     organizations:
       - {{pki_org}}
-  commonName: idp.{{ts_suffix}}
+  commonName: grafana.{{ts_suffix}}
   isCA: false
   privateKey:
     algorithm: RSA
@@ -21,7 +21,7 @@ spec:
   usages:
     - server auth
   dnsNames:
-    - idp.{{ts_suffix}}
+    - grafana.{{ts_suffix}}
   ipAddresses:
     - {{ip_address}}
   issuerRef:
@@ -32,54 +32,54 @@ spec:
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: idp
-  namespace: platform-management
+  name: grafana
+  namespace: observability
 spec:
   gatewayClassName: cilium
   infrastructure:
     annotations:
       tailscale.com/expose: "true"
-      tailscale.com/hostname: idp
+      tailscale.com/hostname: grafana
   listeners:
 {% if ip_address | length > 0 %}
   - protocol: HTTPS
     port: 443
-    name: idp-https
+    name: grafana-https
     allowedRoutes:
       namespaces:
         from: Same
-    hostname: idp.{{ts_suffix}}
+    hostname: grafana.{{ts_suffix}}
     tls:
       certificateRefs:
       - kind: Secret
-        name: idp-endpoint
+        name: grafana-endpoint
       mode: Terminate
 {% else %}
   - protocol: HTTP
     port: 80
-    name: idp-http
+    name: grafana-http
     allowedRoutes:
       namespaces:
         from: Same
-    hostname: idp.{{ts_suffix}}
+    hostname: grafana.{{ts_suffix}}
 {% endif %}
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: http-authentik
-  namespace: platform-management
+  name: http-grafana
+  namespace: observability
 spec:
   parentRefs:
   - group: gateway.networking.k8s.io
     kind: Gateway
-    name: idp
-    namespace: platform-management
+    name: grafana
+    namespace: observability
   rules:
   - backendRefs:
     - group: ""
       kind: Service
-      name: idp-authentik-server
+      name: grafana
       port: 80
       weight: 1
     matches:

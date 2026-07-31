@@ -19,6 +19,7 @@ chart and Tailscale has assigned a tailnet IP to the service.
 
 - [deploy-idp.sh](deploy-idp.sh): creates the Tailscale API gateway for Authentik (`idp.<ts_suffix>`). Authentik itself is deployed by Flux.
 - [deploy-cmdb.sh](deploy-cmdb.sh): creates the Tailscale API gateway for Netbox (`cmdb.<ts_suffix>`). Netbox itself is deployed by Flux.
+- [deploy-observability.sh](deploy-observability.sh): creates the Tailscale API gateway for Grafana (`grafana.<ts_suffix>`). The VictoriaMetrics stack and Grafana are deployed by Flux.
 
 ## BMaaS operations
 

@@ -1,7 +1,13 @@
 # NOT managed by Flux (excluded from kustomization.yaml): datasetPath depends
 # on TRUENAS_POOL, resolved only at deploy time. task flux creates the real
-# StorageClass imperatively — see ring0/scripts/deploy-flux.sh. This file
-# documents the expected shape.
+# StorageClasses imperatively — see ring0/scripts/deploy-flux.sh. This file
+# documents the expected shapes.
+#
+# truenas-nfs   — file storage over NFS (RWX capable). Default for general PVCs.
+# truenas-iscsi — block storage over iSCSI. Required by databases and by
+#                 VictoriaMetrics (which does not support NFS). Needs the
+#                 siderolabs/iscsi-tools Talos extension on the nodes and the
+#                 iSCSI service enabled on the TrueNAS appliance.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
@@ -11,6 +17,20 @@ parameters:
   protocol: "nfs"
   datasetPath: "pool1/csi/nfs"
   compression: "LZ4"
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+allowVolumeExpansion: true
+---
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: truenas-iscsi
+provisioner: csi.truenas.io
+parameters:
+  protocol: "iscsi"
+  datasetPath: "pool1/csi/iscsi"
+  compression: "LZ4"
+  fsType: "ext4"
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
 allowVolumeExpansion: true

@@ -1,0 +1,22 @@
+# Dedicated PostgreSQL backend for Grafana, kept in the observability namespace
+# so the CNPG-generated grafana-db-app Secret is local to Grafana (no
+# cross-namespace secret sharing). Managed by the cluster-wide CNPG operator
+# (cnpg-system, deployed as infrastructure/02-cnpg-operator).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: grafana-db
+  namespace: observability
+spec:
+  instances: 1
+  storage:
+    size: 2Gi
+    storageClass: truenas-iscsi
+  # Expose per-database metrics as a PodMonitor discovered by the
+  # VictoriaMetrics operator (requires the monitoring.coreos.com CRDs).
+  monitoring:
+    enablePodMonitor: true
+  bootstrap:
+    initdb:
+      database: grafana
+      owner: grafana

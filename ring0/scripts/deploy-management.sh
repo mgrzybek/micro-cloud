@@ -46,6 +46,10 @@ desactivate_netboot_on_instance
 
 create_namespaces
 
+if ! helm list -n flux-system -o json | jq -e '.[] | select(.name=="prometheus-operator-crds")' >/dev/null 2>&1; then
+	install_prometheus_operator_crds
+fi
+
 if ! helm list -n kube-system -o json | jq -e '.[] | select(.name=="cilium" and .status=="deployed")' >/dev/null 2>&1; then
 	install_cilium
 fi

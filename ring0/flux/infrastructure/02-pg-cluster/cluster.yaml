@@ -7,6 +7,10 @@ spec:
   instances: 1
   storage:
     size: 5Gi
+  # Expose per-database metrics as a PodMonitor discovered by the
+  # VictoriaMetrics operator (requires the monitoring.coreos.com CRDs).
+  monitoring:
+    enablePodMonitor: true
   managed:
     roles:
       - name: app

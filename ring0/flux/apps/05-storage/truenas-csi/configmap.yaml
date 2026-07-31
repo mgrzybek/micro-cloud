@@ -13,6 +13,7 @@ data:
   truenasInsecure: "true" # TrueNAS UI uses a self-signed cert in this homelab
   defaultPool: "pool1"
   nfsServer: "stockage.<ts_suffix>"
-  # iscsiPortal is a required key for the driver even when only NFS is used;
-  # unused placeholder since iSCSI is not enabled on this cluster.
+  # iscsiPortal backs the truenas-iscsi StorageClass. Requires the iSCSI service
+  # enabled on the TrueNAS appliance and the siderolabs/iscsi-tools extension on
+  # the Talos nodes.
   iscsiPortal: "stockage.<ts_suffix>:3260"
