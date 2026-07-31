@@ -421,12 +421,14 @@ bao kv put secret/truenas-csi api-key=<your-truenas-api-key>
 
 The `truenas-csi-config` ConfigMap and the `truenas-nfs` / `truenas-iscsi`
 StorageClasses are also excluded from Flux: `truenasURL`/`nfsServer` depend on
-`ts_suffix` and `datasetPath` depends on `TRUENAS_POOL`, both resolved only at
-deploy time. `task flux` creates them imperatively from
+`ts_suffix` and the pool/dataset values depend on `TRUENAS_POOL`, both resolved
+only at deploy time. `task flux` creates them imperatively from
 `TRUENAS_HOSTNAME`/`TRUENAS_POOL` (see [deploy-flux.sh](scripts/deploy-flux.sh));
-re-run it whenever these values change. `TRUENAS_POOL` must be the full ZFS
-dataset path (e.g. `pool1/csi/nfs`), used verbatim as the StorageClass's
-`datasetPath` — do not just pass the pool name.
+re-run it whenever these values change. `TRUENAS_POOL` is the full ZFS dataset
+path (e.g. `pool1/csi/nfs`); `task flux` splits it into the ConfigMap
+`defaultPool` (the pool name alone, `pool1`) and the StorageClass `datasetPath`
+(the parent path relative to the pool, `csi/nfs`), as required by the
+truenas-csi v1.1+ schema.
 
 Two StorageClasses are provisioned:
 
@@ -548,8 +550,8 @@ Here are some common issues and tips:
 - **`ExternalSecret truenas-api-credentials` never syncs (`SecretSyncedError`):**
   Check, in order: the secret was actually pushed to OpenBao (`bao kv get secret/truenas-csi`); OpenBao is not sealed (`dist/openbao-unseal.key`); the store is healthy (`kubectl get clustersecretstore openbao -o yaml`).
 
-- **PVC using `truenas-nfs` stays `Pending` with a pool/dataset error:**
-  The `truenas-nfs` StorageClass is created imperatively by `task flux` (excluded from Flux, see `flux/apps/05-storage/truenas-csi/storageclass.yaml`'s header comment) with `datasetPath` set verbatim to `$TRUENAS_POOL` — this must already be the full dataset path (e.g. `pool1/csi/nfs`), not just the pool name, otherwise the driver looks up a duplicated/incorrect path (e.g. `pool1/csi/nfs/csi/nfs`). Confirm `TRUENAS_POOL` matches an existing dataset on the TrueNAS appliance, and that the management cluster can reach `stockage.<ts_suffix>` over Tailscale.
+- **PVC using `truenas-nfs` stays `Pending`, or the CSI controller crash-loops with `pool '<pool>/<path>' not found`:**
+  The truenas-csi v1.1+ schema splits pool and dataset: the ConfigMap `defaultPool` is the pool NAME only (`pool1`) and the StorageClass `datasetPath` is the parent path RELATIVE to the pool (`csi/nfs`, no pool prefix). `task flux` derives both from `TRUENAS_POOL` (the full dataset path, e.g. `pool1/csi/nfs`); if `defaultPool` still carries the full path the driver treats it as a pool name and fails validation. Confirm the dataset `TRUENAS_POOL` exists on the appliance (`zfs list <pool>/<path>`), that the management cluster can reach `stockage.<ts_suffix>` over Tailscale, and re-run `task flux` after changing these values.
 
 - **General logs and debugging:**
   Use `journalctl` on the bootstrap and pki instances to inspect system services. Use `incus` commands with verbose flags (`-v`) for detailed output. Use `incus console management` to see the console output of the management instance, especially during the boot process.

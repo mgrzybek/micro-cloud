@@ -11,6 +11,8 @@ metadata:
 data:
   truenasURL: "wss://stockage.<ts_suffix>/api/current"
   truenasInsecure: "true" # TrueNAS UI uses a self-signed cert in this homelab
+  # defaultPool is the ZFS pool NAME only (v1.1+ schema). The parent dataset
+  # path lives in the StorageClass datasetPath, relative to this pool.
   defaultPool: "pool1"
   nfsServer: "stockage.<ts_suffix>"
   # iscsiPortal backs the truenas-iscsi StorageClass. Requires the iSCSI service
