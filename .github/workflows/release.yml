@@ -54,3 +54,6 @@ jobs:
         with:
           name: ${{ github.ref_name }}
           body: ${{ steps.git-cliff.outputs.content }}
+          # Mark tags carrying a SemVer pre-release suffix (e.g. v0.1.0-rc.1) as
+          # a GitHub pre-release; final vX.Y.Z tags become full releases.
+          prerelease: ${{ contains(github.ref_name, '-') }}
