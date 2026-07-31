@@ -207,7 +207,8 @@ function create_pki_csr() {
 {
   "CN": "$INSTANCE.$SUFFIX",
   "hosts": [
-    "$hosts"
+    "$hosts",
+    "$PKI_BOOTSTRAP_SERVER_ADDR"
   ],
   "names": [
     {
