@@ -66,7 +66,8 @@ ExecStart=/bin/bash -c "if ! ip addr show | grep -q $SERVER_CIDR ; then ip addr 
 WantedBy=multi-user.target
 EOF
 
-	systemctl enable bootstrap-network.service
+	systemctl daemon-reload
+	systemctl enable --now bootstrap-network.service
 
 }
 
