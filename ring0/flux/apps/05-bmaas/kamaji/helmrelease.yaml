@@ -71,9 +71,14 @@ spec:
     datastore:
       enabled: true
       name: microcloud
-    # Expose the etcd metrics endpoint via a ServiceMonitor for the
-    # VictoriaMetrics operator. The chart's default labels/serviceAccount target
-    # kube-prometheus-stack, but the VM operator converts the ServiceMonitor
-    # regardless of those labels, so they are left as-is.
+    # Expose the etcd metrics endpoint (plain HTTP on the client service's
+    # "metrics" port) via a ServiceMonitor the VictoriaMetrics operator converts
+    # into a VMServiceScrape. Drop the chart's default kube-prometheus-stack
+    # label so the object isn't mislabelled for a stack we don't run.
+    # The chart also renders a Role/RoleBinding toward its default
+    # kube-prometheus-stack ServiceAccount; that RBAC is inert here (vmagent
+    # scrapes with its own ServiceAccount and the endpoint needs no auth) and the
+    # chart offers no switch to disable it, so it is intentionally left as-is.
     serviceMonitor:
       enabled: true
+      labels: {}

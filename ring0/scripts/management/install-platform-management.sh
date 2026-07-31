@@ -18,6 +18,20 @@ function create_namespaces() {
 	kubectl apply -f "$MANIFESTS_PATH/00-namespaces.yaml"
 }
 
+function install_prometheus_operator_crds() {
+	print_milestone "Installing the Prometheus Operator CRDs"
+
+	# monitoring.coreos.com CRDs (ServiceMonitor, PodMonitor, ...) must exist
+	# before cilium/cert-manager/cnpg are installed with their monitoring options
+	# enabled, otherwise the Helm installs fail with
+	# "no matches for kind ServiceMonitor in version monitoring.coreos.com/v1".
+	# CRDs are plain API registrations (no pods), so they can be applied before
+	# the CNI is up. The release name/namespace match the Flux HelmRelease
+	# (flux-system/prometheus-operator-crds) so Flux adopts it after bootstrap.
+	helm install prometheus-operator-crds prometheus-community/prometheus-operator-crds \
+		--wait --create-namespace --namespace flux-system
+}
+
 function install_cilium() {
 	print_milestone "Installing cilium"
 
@@ -56,7 +70,13 @@ function install_cert_manager() {
 	local openbao_ca_bundle
 	openbao_ca_bundle="$(base64 <"$RING0_ROOT/dist/bundle.crt" | tr -d '\n')"
 
-	helm install cert-manager jetstack/cert-manager --create-namespace --namespace cert-manager --set crds.enabled=true --set "extraArgs={--enable-gateway-api}"
+	# prometheus.servicemonitor lets the VictoriaMetrics operator discover
+	# cert-manager metrics (requires the Prometheus Operator CRDs installed above).
+	helm install cert-manager jetstack/cert-manager --create-namespace --namespace cert-manager \
+		--set crds.enabled=true \
+		--set "extraArgs={--enable-gateway-api}" \
+		--set prometheus.enabled=true \
+		--set prometheus.servicemonitor.enabled=true
 
 	if ! kubectl get configmap -n cert-manager internal-ca-chain >/dev/null 2>&1; then
 		kubectl create configmap internal-ca-chain --namespace=cert-manager --from-file="key=$RING0_ROOT/dist/bundle.crt"
@@ -105,7 +125,11 @@ function install_local_path_provisioner() {
 function install_cnpg() {
 	print_milestone "Installing cnpg"
 
-	helm install cnpg --wait --create-namespace --namespace cnpg-system cnpg/cloudnative-pg
+	# monitoring.podMonitorEnabled exposes the operator metrics as a PodMonitor
+	# discovered by the VictoriaMetrics operator (requires the Prometheus Operator
+	# CRDs installed above). Per-database metrics are enabled on each Cluster CR.
+	helm install cnpg --wait --create-namespace --namespace cnpg-system cnpg/cloudnative-pg \
+		--set monitoring.podMonitorEnabled=true
 }
 
 function install_tailscale() {
