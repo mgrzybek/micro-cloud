@@ -32,6 +32,9 @@ spec:
               - op: remove
                 path: /spec/template/spec/containers/0/command
   values:
+    # Let the VictoriaMetrics operator discover the Kamaji controller metrics.
+    serviceMonitor:
+      enabled: true
     image:
       # Pin to a specific "edge" build: 0.0.0+latest (the chart) and the
       # controller image are versioned independently upstream, so the chart
@@ -68,3 +71,9 @@ spec:
     datastore:
       enabled: true
       name: microcloud
+    # Expose the etcd metrics endpoint via a ServiceMonitor for the
+    # VictoriaMetrics operator. The chart's default labels/serviceAccount target
+    # kube-prometheus-stack, but the VM operator converts the ServiceMonitor
+    # regardless of those labels, so they are left as-is.
+    serviceMonitor:
+      enabled: true

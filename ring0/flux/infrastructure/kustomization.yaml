@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
   - repositories
   - 00-namespaces
+  - 00-prometheus-operator-crds
   - 01-cilium
   - 01-cert-manager
   - 02-local-path-provisioner

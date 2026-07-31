@@ -12,7 +12,14 @@ spec:
         kind: HelmRepository
         name: metrics-server
         namespace: flux-system
+  # serviceMonitor below requires the monitoring.coreos.com CRDs.
+  dependsOn:
+    - name: prometheus-operator-crds
+      namespace: flux-system
   values:
+    # Let the VictoriaMetrics operator discover metrics-server metrics.
+    serviceMonitor:
+      enabled: true
     # Talos kubelet serving certs are self-signed unless server cert rotation is
     # enabled; --kubelet-insecure-tls lets metrics-server scrape them. Drop this
     # arg if the cluster is configured with signed kubelet serving certificates.

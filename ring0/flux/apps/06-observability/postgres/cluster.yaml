@@ -12,6 +12,10 @@ spec:
   storage:
     size: 2Gi
     storageClass: truenas-iscsi
+  # Expose per-database metrics as a PodMonitor discovered by the
+  # VictoriaMetrics operator (requires the monitoring.coreos.com CRDs).
+  monitoring:
+    enablePodMonitor: true
   bootstrap:
     initdb:
       database: grafana

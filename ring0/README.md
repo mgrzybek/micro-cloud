@@ -275,6 +275,7 @@ From this point Flux manages the following components from the OCI artifact (`gh
 
 | Flux path | Component | Namespace |
 | --- | --- | --- |
+| `infrastructure/00-prometheus-operator-crds` | `monitoring.coreos.com` CRDs (ServiceMonitor/PodMonitor) | flux-system |
 | `infrastructure/01-cilium` | Cilium CNI | kube-system |
 | `infrastructure/01-cert-manager` | cert-manager | cert-manager |
 | `infrastructure/02-cnpg-operator` | CloudNative PG operator | cnpg-system |
@@ -351,6 +352,22 @@ be backed up with the `truenas-snapclass` `VolumeSnapshotClass`.
 > [!NOTE]
 > Logs (VictoriaLogs), traces (VictoriaTraces), alerting (vmalert/Alertmanager) and Grafana SSO
 > via Authentik are intentionally out of scope for this iteration and can be added later.
+
+#### Metrics discovery across all middlewares
+
+Every Helm chart that supports it enables its `ServiceMonitor`/`PodMonitor` option (Cilium — agent,
+operator, envoy and Hubble —, cert-manager, CloudNativePG operator and both PostgreSQL clusters,
+metrics-server, External Secrets, Authentik, Netbox, Zot, Kamaji, Kamaji-etcd and Grafana). The
+VictoriaMetrics operator watches these `monitoring.coreos.com` objects cluster-wide and converts them
+into its own `VMServiceScrape`/`VMPodScrape` resources, which `vmagent` scrapes
+(`selectAllByDefault: true`).
+
+Those CRDs are **not** shipped by the VictoriaMetrics chart — the operator only converts
+pre-existing objects — so they are installed early as `infrastructure/00-prometheus-operator-crds`
+(chart `prometheus-community/prometheus-operator-crds`). Charts that render a `ServiceMonitor`
+inside the `infrastructure` Kustomization (Cilium, cert-manager, CNPG, metrics-server) declare a
+`dependsOn` on that release; the `apps` charts are already ordered after `infrastructure` via the
+Kustomization `dependsOn`.
 
 ### Configuring OIDC for the management cluster
 

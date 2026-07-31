@@ -1,0 +1,24 @@
+# Installs the monitoring.coreos.com CRDs (ServiceMonitor, PodMonitor, Probe,
+# PrometheusRule, ...). These CRDs are NOT shipped by the VictoriaMetrics stack:
+# the VM operator only *converts* prometheus-operator objects into its own VM
+# CRDs (VMServiceScrape/VMPodScrape) — it expects the CRDs to be preinstalled.
+# Every chart that renders a ServiceMonitor/PodMonitor (cilium, cert-manager,
+# cnpg, metrics-server, authentik, netbox, zot, kamaji, ...) therefore depends
+# on this release; without it those Helm installs fail with
+# "no matches for kind ServiceMonitor in version monitoring.coreos.com/v1".
+# Deployed as 00-* so it reconciles before the infrastructure charts that need
+# it (which reference it via dependsOn).
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus-operator-crds
+  namespace: flux-system
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: prometheus-operator-crds
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+        namespace: flux-system

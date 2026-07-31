@@ -18,3 +18,8 @@ spec:
     crds: CreateReplace
   values:
     installCRDs: true
+    # Let the VictoriaMetrics operator discover the External Secrets metrics.
+    # renderMode defaults to skipIfMissing, so this is a no-op until the
+    # monitoring.coreos.com CRDs are present (installed as infrastructure).
+    serviceMonitor:
+      enabled: true

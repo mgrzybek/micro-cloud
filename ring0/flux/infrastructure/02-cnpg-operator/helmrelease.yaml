@@ -12,7 +12,17 @@ spec:
         kind: HelmRepository
         name: cnpg
         namespace: flux-system
+  # podMonitor below requires the monitoring.coreos.com CRDs.
+  dependsOn:
+    - name: prometheus-operator-crds
+      namespace: flux-system
   install:
     crds: CreateReplace
   upgrade:
     crds: CreateReplace
+  values:
+    # Expose the operator's own metrics as a PodMonitor discovered by the
+    # VictoriaMetrics operator. Per-database metrics are enabled separately on
+    # each Cluster CR via spec.monitoring.enablePodMonitor.
+    monitoring:
+      podMonitorEnabled: true

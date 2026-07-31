@@ -81,6 +81,9 @@ spec:
       enabled: true
       # Stable service name "grafana" for the HTTPRoute backendRef.
       fullnameOverride: grafana
+      # Scrape Grafana's own metrics via the VictoriaMetrics operator.
+      serviceMonitor:
+        enabled: true
       # State lives in PostgreSQL (grafana-db), so no SQLite PVC is needed.
       persistence:
         enabled: false

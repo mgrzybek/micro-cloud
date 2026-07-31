@@ -33,6 +33,18 @@ spec:
       ingress:
         enabled: true
         hosts: []
+      # Deploy the metrics service + ServiceMonitor so the VictoriaMetrics
+      # operator discovers the authentik server metrics.
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
+    worker:
+      # Same for the authentik worker.
+      metrics:
+        enabled: true
+        serviceMonitor:
+          enabled: true
     postgresql:
       enabled: false
     redis:

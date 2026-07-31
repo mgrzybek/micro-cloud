@@ -21,3 +21,35 @@ spec:
       create: true
     strategy:
       type: Recreate
+    # zot only exports Prometheus metrics when the "metrics" extension is
+    # enabled in its config.json, which requires mounting a custom config
+    # (mountConfig). This mirrors the chart's default config and just adds the
+    # metrics extension. rootDirectory must stay /var/lib/registry to match the
+    # persisted PVC mount.
+    mountConfig: true
+    configFiles:
+      config.json: |-
+        {
+          "storage": { "rootDirectory": "/var/lib/registry" },
+          "http": {
+            "address": "0.0.0.0",
+            "port": "5000",
+            "readTimeout": "60s",
+            "writeTimeout": "60s"
+          },
+          "log": { "level": "info" },
+          "extensions": {
+            "metrics": {
+              "enable": true,
+              "prometheus": { "path": "/metrics" }
+            }
+          }
+        }
+    # Start the exporter and let the VictoriaMetrics operator discover it. The
+    # /metrics endpoint is anonymous (no htpasswd auth configured), so drop the
+    # chart's default basicAuth referencing a non-existent "basic-auth" secret.
+    metrics:
+      enabled: true
+      serviceMonitor:
+        enabled: true
+        basicAuth: null
