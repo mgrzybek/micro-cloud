@@ -10,3 +10,4 @@ resources:
   - 02-pg-cluster
   - 02-tailscale-operator
   - 02-external-snapshotter
+  - 03-metrics-server

@@ -1,0 +1,71 @@
+# Metrics-only observability stack (VictoriaMetrics). Logs (VictoriaLogs) and
+# traces (VictoriaTraces) are intentionally out of scope for this iteration.
+# Alerting (vmalert + alertmanager) is disabled for now.
+# Grafana is exposed via the Cilium Gateway API + Tailscale annotations created
+# imperatively by scripts/deploy-observability.sh (task observability), not via
+# the chart ingress — hence grafana.ingress.enabled: false.
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: victoria-metrics-k8s-stack
+  namespace: observability
+spec:
+  interval: 1h
+  chart:
+    spec:
+      chart: victoria-metrics-k8s-stack
+      sourceRef:
+        kind: HelmRepository
+        name: victoria-metrics
+        namespace: flux-system
+  values:
+    # Single-node TSDB persisted on the TrueNAS CSI (survives reschedule,
+    # snapshottable via the truenas-snapclass VolumeSnapshotClass for backups).
+    vmsingle:
+      spec:
+        retentionPeriod: "30d"
+        resources:
+          requests:
+            cpu: 200m
+            memory: 512Mi
+          limits:
+            memory: 1Gi
+        storage:
+          accessModes:
+            - ReadWriteOnce
+          storageClassName: truenas-nfs
+          resources:
+            requests:
+              storage: 20Gi
+    vmagent:
+      spec:
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+    # No alerting this iteration.
+    vmalert:
+      enabled: false
+    alertmanager:
+      enabled: false
+    # Kubernetes metrics sources.
+    kube-state-metrics:
+      enabled: true
+    prometheus-node-exporter:
+      enabled: true
+    grafana:
+      enabled: true
+      # Stable service name "grafana" for the HTTPRoute backendRef.
+      fullnameOverride: grafana
+      persistence:
+        enabled: true
+        storageClassName: truenas-nfs
+        size: 5Gi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+      ingress:
+        enabled: false

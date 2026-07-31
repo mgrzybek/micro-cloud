@@ -9,5 +9,7 @@ resources:
   - helm-authentik.yaml
   - helm-zot.yaml
   - helm-clastix.yaml
+  - helm-victoria-metrics.yaml
+  - helm-metrics-server.yaml
   - oci-netbox.yaml
   - oci-tinkerbell.yaml
