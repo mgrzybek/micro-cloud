@@ -18,7 +18,7 @@ metadata:
 provisioner: csi.truenas.io
 parameters:
   protocol: "nfs"
-  datasetPath: "csi/nfs"
+  datasetPath: "csi"
   compression: "LZ4"
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
