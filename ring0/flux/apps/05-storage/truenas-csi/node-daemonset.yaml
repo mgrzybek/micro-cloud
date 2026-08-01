@@ -25,8 +25,15 @@ spec:
           imagePullPolicy: IfNotPresent
           lifecycle:
             postStart:
+              # On Talos, iscsid (iscsi-tools extension) runs in its own mount &
+              # IPC namespace, so the container's iscsiadm cannot reach the iscsid
+              # control socket — nor PID 1 (minimal rootfs, no iscsiadm). Replace
+              # iscsiadm with a wrapper that nsenters into the running iscsid's
+              # namespaces and runs the extension's iscsiadm there. The iscsi_tcp
+              # module and shared /etc/iscsi + /var/lib/iscsi come from the Talos
+              # machine config (kernel.modules + kubelet.extraMounts).
               exec:
-                command: ["/bin/sh", "-c", "mkdir -p /run/lock/iscsi && mv /usr/sbin/iscsiadm /usr/sbin/iscsiadm.orig 2>/dev/null; printf '#!/bin/sh\\nnsenter --mount=/host/proc/1/ns/mnt -- /usr/sbin/iscsiadm \"$@\"\\n' > /usr/sbin/iscsiadm && chmod +x /usr/sbin/iscsiadm; nsenter --mount=/host/proc/1/ns/mnt -- modprobe nvme_tcp 2>/dev/null || true; nsenter --mount=/host/proc/1/ns/mnt -- modprobe nvme_fabrics 2>/dev/null || true; test -x /usr/sbin/iscsiadm"]
+                command: ["/bin/sh", "-c", "mkdir -p /run/lock/iscsi; printf '#!/bin/sh\\nPID=$(for p in /host/proc/[0-9]*; do [ \"$(cat \"$p/comm\" 2>/dev/null)\" = iscsid ] && { basename \"$p\"; break; }; done)\\nexec nsenter --mount=/host/proc/$PID/ns/mnt --net=/host/proc/$PID/ns/net -- iscsiadm \"$@\"\\n' > /usr/sbin/iscsiadm; chmod +x /usr/sbin/iscsiadm"]
           securityContext:
             privileged: true
           args:
@@ -166,10 +173,10 @@ spec:
         - name: iscsi-dir
           hostPath:
             path: /etc/iscsi
-            # On Talos the iscsi-tools extension runs iscsid in its own mount
-            # namespace, so /etc/iscsi is not visible at the host root and a
-            # strict Directory check fails. DirectoryOrCreate lets kubelet create
-            # the mount point; the driver talks to the host iscsid via nsenter.
+            # The Talos machine config bind-mounts the host /etc/iscsi into the
+            # kubelet (rshared), so this hostPath sees the iscsi-tools extension's
+            # real initiator config. DirectoryOrCreate stays tolerant if the
+            # shared mount is briefly absent during boot.
             type: DirectoryOrCreate
         - name: iscsi-lib
           hostPath:

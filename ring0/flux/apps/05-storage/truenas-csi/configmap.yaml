@@ -18,4 +18,10 @@ data:
   # iscsiPortal backs the truenas-iscsi StorageClass. Requires the iSCSI service
   # enabled on the TrueNAS appliance and the siderolabs/iscsi-tools extension on
   # the Talos nodes.
-  iscsiPortal: "stockage.<ts_suffix>:3260"
+  #
+  # It MUST be an IP address, not a DNS name: csi-lib-iscsi builds the expected
+  # /dev/disk/by-path/ip-<portal>-... device string from the portal literal, but
+  # udev names that symlink with the resolved IP. A DNS-name portal never matches,
+  # so NodeStageVolume fails with "failed to find device path". deploy-flux.sh
+  # resolves the TrueNAS Tailscale IP (`tailscale ip -4 $TRUENAS_HOSTNAME`).
+  iscsiPortal: "100.107.133.46:3260"
