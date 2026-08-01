@@ -222,6 +222,14 @@ truenas_default_pool="${TRUENAS_POOL%%/*}"
 truenas_dataset_path=""
 [[ "$TRUENAS_POOL" == */* ]] && truenas_dataset_path="${TRUENAS_POOL#*/}"
 
+# The iSCSI portal MUST be an IP address, not a DNS name: csi-lib-iscsi builds the
+# expected /dev/disk/by-path/ip-<portal>-... device string from the portal literal,
+# but udev names that symlink with the resolved IP. A DNS-name portal therefore
+# never matches and NodeStageVolume fails with "failed to find device path". Resolve
+# the TrueNAS Tailscale IP here (the nodes reach TrueNAS over the same mesh); NFS and
+# the API URL can stay as names.
+truenas_iscsi_ip="$(tailscale ip -4 "$TRUENAS_HOSTNAME")"
+
 print_step "Creating truenas-csi-config ConfigMap"
 kubectl create namespace truenas-csi --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap truenas-csi-config \
@@ -230,7 +238,7 @@ kubectl create configmap truenas-csi-config \
 	--from-literal="truenasInsecure=true" \
 	--from-literal="defaultPool=$truenas_default_pool" \
 	--from-literal="nfsServer=$TRUENAS_HOSTNAME.$TS_SUFFIX" \
-	--from-literal="iscsiPortal=$TRUENAS_HOSTNAME.$TS_SUFFIX:3260" \
+	--from-literal="iscsiPortal=$truenas_iscsi_ip:3260" \
 	--dry-run=client -o yaml | kubectl apply -f -
 print_check "truenas-csi-config ConfigMap created"
 

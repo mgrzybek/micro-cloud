@@ -29,6 +29,9 @@ cluster:
   proxy:
     disabled: true
 machine:
+  kernel:
+    modules:
+      - name: iscsi_tcp
   features:
     kubePrism:
       enabled: false
@@ -55,6 +58,23 @@ machine:
       - destination: /var/local
         type: bind
         source: /var/local
+        options:
+          - bind
+          - rshared
+          - rw
+      # iSCSI: share the host initiator config and session DB into the kubelet
+      # (rshared) so the truenas-csi node plugin's hostPath mounts see the same
+      # state as the iscsi-tools extension's iscsid.
+      - destination: /etc/iscsi
+        type: bind
+        source: /etc/iscsi
+        options:
+          - bind
+          - rshared
+          - rw
+      - destination: /var/lib/iscsi
+        type: bind
+        source: /var/lib/iscsi
         options:
           - bind
           - rshared
