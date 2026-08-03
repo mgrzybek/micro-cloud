@@ -30,7 +30,7 @@ function install_grafana_api_gateway() {
 	fi
 
 	local svc_ip_addr
-	svc_ip_addr="$(tailscale status | awk '/\bgrafana\b/ {print $1}')"
+	svc_ip_addr="$(tailscale status | awk '/ grafana / {print $1}')"
 	jinja2 --strict \
 		-D "ip_address=$svc_ip_addr" -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
 		"$MANIFESTS_PATH/06-observability/api-gateway.yaml.j2" \

@@ -141,7 +141,7 @@ function install_registry_api_gateway() {
 	fi
 
 	local tailscale_ip_address
-	tailscale_ip_address="$(tailscale status | awk '/registry/ {print $1}')"
+	tailscale_ip_address="$(tailscale status | awk '/ registry / {print $1}')"
 
 	jinja2 --strict \
 		-D "namespace=$BMAAS_NAMESPACE" \
