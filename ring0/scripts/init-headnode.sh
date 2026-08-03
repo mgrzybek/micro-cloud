@@ -37,7 +37,7 @@ function install_incus() {
 	echo
 
 	local TAILSCALE_IPADDR
-	TAILSCALE_IPADDR="$(tailscale status | grep "$HOSTNAME" | awk '{print $1}')"
+	TAILSCALE_IPADDR="$(tailscale status | grep -w "$HOSTNAME" | awk '{print $1}')"
 
 	sudo apt -y install incus
 	sudo incus admin init

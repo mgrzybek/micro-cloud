@@ -35,19 +35,11 @@ function install_prometheus_operator_crds() {
 function install_cilium() {
 	print_milestone "Installing cilium"
 
-	local gw_api_version=v1.2.0
+	local gw_api_version=v1.6.1
 	local management_services_interface
 	management_services_interface="$(talosctl --talosconfig "$RING0_ROOT/dist/talosconfig" -n management -e management get addresses | grep "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')"
 
-	kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_gatewayclasses.yaml"
-	kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_gateways.yaml"
-	kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_httproutes.yaml"
-	kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_referencegrants.yaml"
-	kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/standard/gateway.networking.k8s.io_grpcroutes.yaml"
-
-	kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/experimental/gateway.networking.k8s.io_tcproutes.yaml"
-	kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/experimental/gateway.networking.k8s.io_udproutes.yaml"
-	kubectl apply -f "https://raw.githubusercontent.com/kubernetes-sigs/gateway-api/$gw_api_version/config/crd/experimental/gateway.networking.k8s.io_tlsroutes.yaml"
+	kubectl apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/$gw_api_version/standard-install.yaml"
 
 	jinja2 --strict \
 		-D "announcements_iface=$management_services_interface" \
@@ -169,7 +161,7 @@ function install_cmdb_api_gateway() {
 	fi
 
 	local svc_ip_addr
-	svc_ip_addr="$(tailscale status | awk '/\bcmdb\b/ {print $1}')"
+	svc_ip_addr="$(tailscale status | awk '/ cmdb / {print $1}')"
 	jinja2 --strict \
 		-D "ip_address=$svc_ip_addr" -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
 		"$MANIFESTS_PATH/04-cmdb/api-gateway.yaml.j2" \
@@ -195,7 +187,7 @@ function install_idp_api_gateway() {
 	fi
 
 	local svc_ip_addr
-	svc_ip_addr="$(tailscale status | awk '/\bidp\b/ {print $1}')"
+	svc_ip_addr="$(tailscale status | awk '/ idp / {print $1}')"
 	jinja2 --strict \
 		-D "ip_address=$svc_ip_addr" -D "ts_suffix=$TS_SUFFIX" -D "pki_org=$PKI_ORG" \
 		"$MANIFESTS_PATH/03-idp/api-gateway.yaml.j2" \
