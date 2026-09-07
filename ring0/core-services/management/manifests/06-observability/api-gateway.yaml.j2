@@ -77,10 +77,11 @@ spec:
     namespace: observability
   rules:
   - backendRefs:
+    # Service created by the grafana-operator for the "grafana" Grafana CR.
     - group: ""
       kind: Service
-      name: grafana
-      port: 80
+      name: grafana-service
+      port: 3000
       weight: 1
     matches:
     - path:

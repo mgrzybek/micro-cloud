@@ -12,5 +12,6 @@ resources:
   - helm-victoria-metrics.yaml
   - helm-metrics-server.yaml
   - helm-prometheus-community.yaml
+  - oci-grafana.yaml
   - oci-netbox.yaml
   - oci-tinkerbell.yaml

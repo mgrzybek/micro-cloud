@@ -1,0 +1,86 @@
+# Grafana instance managed by the grafana-operator. State lives in SQLite on the
+# grafana-data PVC, so the Deployment uses the Recreate strategy: SQLite cannot
+# be shared by two pods on the same volume.
+#
+# ${AUTH_CLIENT_ID}, ${AUTH_CLIENT_SECRET}, ${ISSUER_URL} and ${ROOT_URL} are
+# resolved by Grafana itself from the container environment (env provider, see
+# https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/), fed
+# by the grafana-oauth Secret produced by the ExternalSecret.
+apiVersion: grafana.integreatly.org/v1beta1
+kind: Grafana
+metadata:
+  name: grafana
+  namespace: observability
+  labels:
+    dashboards: "grafana"
+spec:
+  config:
+    log:
+      mode: "console"
+    server:
+      root_url: ${ROOT_URL}
+      serve_from_sub_path: "false"
+    database:
+      type: sqlite3
+      path: grafana.db
+    auth:
+      disable_login_form: "false"
+    auth.generic_oauth:
+      enabled: "true"
+      name: "Authentik"
+      allow_sign_up: "false"
+      client_id: ${AUTH_CLIENT_ID}
+      client_secret: ${AUTH_CLIENT_SECRET}
+      scopes: "openid email profile"
+      email_attribute_path: email
+      login_attribute_path: preferred_username
+      name_attribute_path: name
+      groups_attribute_path: groups
+      auth_url: ${ISSUER_URL}/authorize/
+      token_url: ${ISSUER_URL}/token/
+      api_url: ${ISSUER_URL}/userinfo/
+      role_attribute_path: "contains(groups[*], 'Grafana Admins') && 'Admin' || contains(groups[*], 'Grafana Editors') && 'Editor' || 'Viewer'"
+  deployment:
+    spec:
+      strategy:
+        type: Recreate
+      template:
+        spec:
+          volumes:
+            - name: grafana-data
+              persistentVolumeClaim:
+                claimName: grafana-data
+          containers:
+            # No image pinned on purpose: the operator tracks the Grafana
+            # version matching its own release.
+            - name: grafana
+              volumeMounts:
+                - name: grafana-data
+                  mountPath: /var/lib/grafana
+              env:
+                - name: AUTH_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-oauth
+                      key: client-id
+                - name: AUTH_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-oauth
+                      key: client-secret
+                - name: ISSUER_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-oauth
+                      key: issuer-url
+                - name: ROOT_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: grafana-oauth
+                      key: root-url
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  memory: 256Mi
