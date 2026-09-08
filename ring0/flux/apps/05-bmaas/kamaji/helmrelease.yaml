@@ -17,20 +17,6 @@ spec:
     crds: CreateReplace
   upgrade:
     crds: CreateReplace
-  # 0.0.0+latest builds the "manager" image with ko, whose entrypoint lives
-  # at a path that varies by build (e.g. /ko-app/kamaji) instead of the
-  # /kamaji path baked into stable image tags. The chart still hardcodes
-  # command: ["/kamaji"], so drop it and let the image's own ENTRYPOINT run;
-  # the chart-provided args are passed through unchanged.
-  postRenderers:
-    - kustomize:
-        patches:
-          - target:
-              kind: Deployment
-              name: kamaji
-            patch: |
-              - op: remove
-                path: /spec/template/spec/containers/0/command
   values:
     # Let the VictoriaMetrics operator discover the Kamaji controller metrics.
     serviceMonitor:
