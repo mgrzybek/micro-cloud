@@ -290,13 +290,29 @@ From this point Flux manages the following components from the OCI artifact (`gh
 | `apps/05-bmaas/kamaji` | Kamaji | kamaji-system |
 | `apps/05-bmaas/tinkerbell` | Tinkerbell | tinkerbell-system |
 | `apps/05-storage/truenas-csi` | TrueNAS CSI driver | truenas-csi |
-| `apps/06-observability/postgres` | Grafana PostgreSQL backend (CNPG) | observability |
-| `apps/06-observability/victoria-metrics` | VictoriaMetrics stack + Grafana (metrics only) | observability |
+| `apps/06-observability/grafana` | Grafana WebUI | observability |
+| `apps/06-observability/victoria-metrics` | VictoriaMetrics stack (metrics only) | observability |
 
 Monitor reconciliation with:
 
 ```shell
 flux get all -A
+```
+
+The reconciliation will fail until the required OIDC configurations are set:
+
+- Grafana: you must configure a new application and create some external secrets.
+
+```shell
+# You need these three values first
+export GRAFANA_CLIENT_ID=
+export GRAFANA_CLIENT_SECRET=
+export TS_SUFFIX=
+
+bao kv put secret/grafana \
+  client-id=${GRAFANA_CLIENT_ID} client-secret=${GRAFANA_CLIENT_SECRET} \
+  issuer-url=https://idp.${TS_SUFFIX}/application/o/grafana \
+  root-url=https://grafana.${TS_SUFFIX}
 ```
 
 ## Post-Flux setup
