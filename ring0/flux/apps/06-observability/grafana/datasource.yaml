@@ -1,0 +1,21 @@
+# The VictoriaMetrics single-node TSDB, exposed through a Prometheus-compatible
+# API. The Service name comes from the VMSingle CR created by the
+# victoria-metrics-k8s-stack HelmRelease.
+apiVersion: grafana.integreatly.org/v1beta1
+kind: GrafanaDatasource
+metadata:
+  name: victoria-metrics
+  namespace: observability
+spec:
+  instanceSelector:
+    matchLabels:
+      dashboards: "grafana"
+  datasource:
+    name: VictoriaMetrics
+    type: prometheus
+    access: proxy
+    url: http://vmsingle-victoria-metrics-k8s-stack.observability.svc:8429
+    isDefault: true
+    jsonData:
+      timeInterval: "30s"
+      httpMethod: POST

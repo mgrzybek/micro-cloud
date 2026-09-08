@@ -1,0 +1,15 @@
+# Grafana keeps its state in SQLite (dashboards created from the UI, users,
+# preferences). Block storage over iSCSI, same class as the VictoriaMetrics
+# TSDB, hence snapshottable through the truenas-snapclass VolumeSnapshotClass.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: grafana-data
+  namespace: observability
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: truenas-iscsi
+  resources:
+    requests:
+      storage: 5Gi

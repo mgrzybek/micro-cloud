@@ -268,6 +268,8 @@ kubectl replace --force -f - <<STORAGECLASS
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
   name: truenas-iscsi
 provisioner: csi.truenas.io
 parameters:
