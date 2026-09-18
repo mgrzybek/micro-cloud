@@ -20,6 +20,12 @@ parameters:
   protocol: "nfs"
   datasetPath: "csi"
   compression: "LZ4"
+mountOptions:
+  # Talos ships no rpc.statd, so an NFSv3 mount fails on remote locking.
+  # NFSv4 must be enabled on the TrueNAS appliance for this to work.
+  - nfsvers=4
+  - hard
+  - noatime
 reclaimPolicy: Delete
 volumeBindingMode: Immediate
 allowVolumeExpansion: true

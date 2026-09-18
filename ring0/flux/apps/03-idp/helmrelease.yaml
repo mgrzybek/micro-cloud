@@ -51,8 +51,6 @@ spec:
           enabled: true
     postgresql:
       enabled: false
-    redis:
-      enabled: true
     global:
       env:
         - name: AUTHENTIK_POSTGRESQL__HOST
