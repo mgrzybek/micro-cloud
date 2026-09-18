@@ -8,6 +8,8 @@ spec:
   chart:
     spec:
       chart: cert-manager
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: v1.21.x
       sourceRef:
         kind: HelmRepository
         name: jetstack

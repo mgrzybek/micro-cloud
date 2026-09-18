@@ -18,6 +18,8 @@ spec:
   chart:
     spec:
       chart: prometheus-operator-crds
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 32.x
       sourceRef:
         kind: HelmRepository
         name: prometheus-community

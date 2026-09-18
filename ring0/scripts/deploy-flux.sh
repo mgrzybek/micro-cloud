@@ -289,8 +289,10 @@ print_check "truenas-iscsi StorageClass created"
 print_step "Installing FluxCD Operator"
 helm repo add flux-operator oci://ghcr.io/controlplaneio-fluxcd/charts >/dev/null 2>&1 || true
 if ! helm list -n flux-system -o json | jq -e '.[] | select(.name=="flux-operator" and .status=="deployed")' >/dev/null 2>&1; then
+	# Pinned to a single minor: bump deliberately after reading the release notes.
 	helm install flux-operator \
 		oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator \
+		--version 0.50.x \
 		--namespace flux-system \
 		--create-namespace \
 		--wait

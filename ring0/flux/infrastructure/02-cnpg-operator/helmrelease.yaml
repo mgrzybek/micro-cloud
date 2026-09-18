@@ -8,6 +8,8 @@ spec:
   chart:
     spec:
       chart: cloudnative-pg
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 0.29.x
       sourceRef:
         kind: HelmRepository
         name: cnpg

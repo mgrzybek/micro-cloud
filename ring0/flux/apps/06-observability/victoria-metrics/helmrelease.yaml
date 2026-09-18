@@ -14,6 +14,8 @@ spec:
   chart:
     spec:
       chart: victoria-metrics-k8s-stack
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 0.92.x
       sourceRef:
         kind: HelmRepository
         name: victoria-metrics

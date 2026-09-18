@@ -46,6 +46,8 @@ spec:
   chart:
     spec:
       chart: kamaji-etcd
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 0.17.x
       sourceRef:
         kind: HelmRepository
         name: clastix

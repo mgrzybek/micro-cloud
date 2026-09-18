@@ -8,6 +8,8 @@ spec:
   chart:
     spec:
       chart: cilium
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 1.20.x
       sourceRef:
         kind: HelmRepository
         name: cilium
