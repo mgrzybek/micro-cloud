@@ -18,6 +18,9 @@ function create_namespaces() {
 	kubectl apply -f "$MANIFESTS_PATH/00-namespaces.yaml"
 }
 
+# Chart versions below are pinned to the same minor as the matching Flux
+# HelmRelease under ring0/flux/: without it a fresh bootstrap installs the
+# latest chart and Flux downgrades it right after adopting the release.
 function install_prometheus_operator_crds() {
 	print_milestone "Installing the Prometheus Operator CRDs"
 
@@ -29,6 +32,7 @@ function install_prometheus_operator_crds() {
 	# the CNI is up. The release name/namespace match the Flux HelmRelease
 	# (flux-system/prometheus-operator-crds) so Flux adopts it after bootstrap.
 	helm install prometheus-operator-crds prometheus-community/prometheus-operator-crds \
+		--version 32.x \
 		--wait --create-namespace --namespace flux-system
 }
 
@@ -65,6 +69,7 @@ function install_cert_manager() {
 	# prometheus.servicemonitor lets the VictoriaMetrics operator discover
 	# cert-manager metrics (requires the Prometheus Operator CRDs installed above).
 	helm install cert-manager jetstack/cert-manager --create-namespace --namespace cert-manager \
+		--version v1.21.x \
 		--set crds.enabled=true \
 		--set "extraArgs={--enable-gateway-api}" \
 		--set prometheus.enabled=true \
@@ -121,6 +126,7 @@ function install_cnpg() {
 	# discovered by the VictoriaMetrics operator (requires the Prometheus Operator
 	# CRDs installed above). Per-database metrics are enabled on each Cluster CR.
 	helm install cnpg --wait --create-namespace --namespace cnpg-system cnpg/cloudnative-pg \
+		--version 0.29.x \
 		--set monitoring.podMonitorEnabled=true
 }
 
@@ -130,6 +136,7 @@ function install_tailscale() {
 	helm install \
 		tailscale-operator \
 		tailscale/tailscale-operator \
+		--version 1.102.x \
 		--create-namespace --namespace tailscale --wait \
 		--set-string "oauth.clientId=${TS_OPERATOR_CLIENT_ID}" \
 		--set-string "oauth.clientSecret=${TS_OPERATOR_CLIENT_SECRET}" \

@@ -8,6 +8,8 @@ spec:
   chart:
     spec:
       chart: zot
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 0.1.x
       sourceRef:
         kind: HelmRepository
         name: project-zot

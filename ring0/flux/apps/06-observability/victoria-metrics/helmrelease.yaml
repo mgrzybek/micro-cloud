@@ -7,13 +7,15 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: victoria-metrics-k8s-stack
+  name: vm-stack
   namespace: observability
 spec:
   interval: 1h
   chart:
     spec:
       chart: victoria-metrics-k8s-stack
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 0.92.x
       sourceRef:
         kind: HelmRepository
         name: victoria-metrics
@@ -53,6 +55,7 @@ spec:
       enabled: false
     # Operator and metrics sources — bounded on this small, memory-tight cluster.
     victoria-metrics-operator:
+      fullnameOverride: "vm-op"
       resources:
         requests:
           cpu: 50m

@@ -8,6 +8,8 @@ spec:
   chart:
     spec:
       chart: external-secrets
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 2.10.x
       sourceRef:
         kind: HelmRepository
         name: external-secrets

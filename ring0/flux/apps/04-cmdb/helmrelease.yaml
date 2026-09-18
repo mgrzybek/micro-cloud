@@ -7,9 +7,22 @@ metadata:
   namespace: platform-management
 spec:
   interval: 1h
+  # NetBox 4.7 takes ~5 min to become ready (image pull + Django migrations +
+  # startupProbe on /login/): the 5m default timeout aborts a healthy upgrade.
+  timeout: 20m
+  install:
+    remediation:
+      retries: 3
+  upgrade:
+    cleanupOnFail: true
+    remediation:
+      retries: 3
+      strategy: rollback
   chart:
     spec:
       chart: netbox
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 8.3.x
       sourceRef:
         kind: HelmRepository
         name: netbox-community

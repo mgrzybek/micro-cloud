@@ -8,6 +8,8 @@ spec:
   chart:
     spec:
       chart: metrics-server
+      # Pinned to a single minor: bump deliberately after reading the release notes.
+      version: 3.14.x
       sourceRef:
         kind: HelmRepository
         name: metrics-server
