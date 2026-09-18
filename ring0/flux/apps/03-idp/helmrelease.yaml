@@ -10,6 +10,10 @@ spec:
   chart:
     spec:
       chart: authentik
+      # Pinned to a single minor: authentik requires upgrading one major version
+      # at a time (its Django migrations are not written to be skipped over).
+      # Bump this deliberately, one step at a time, after reading the release notes.
+      version: 2026.8.x
       sourceRef:
         kind: HelmRepository
         name: authentik
