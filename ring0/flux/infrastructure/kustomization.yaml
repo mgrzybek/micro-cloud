@@ -12,3 +12,5 @@ resources:
   - 02-tailscale-operator
   - 02-external-snapshotter
   - 03-metrics-server
+  - 04-eso
+  - 04-grafana-operator
