@@ -14,7 +14,7 @@ spec:
     name: VictoriaMetrics
     type: prometheus
     access: proxy
-    url: http://vmsingle-victoria-metrics-k8s-stack.observability.svc:8429
+    url: http://vmsingle-vm-stack.observability.svc:8429
     isDefault: true
     jsonData:
       timeInterval: "30s"
