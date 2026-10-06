@@ -39,7 +39,7 @@ function install_prometheus_operator_crds() {
 function install_cilium() {
 	print_milestone "Installing cilium"
 
-	local gw_api_version=v1.6.1
+	local gw_api_version=v1.6.3
 	local management_services_interface
 	management_services_interface="$(talosctl --talosconfig "$RING0_ROOT/dist/talosconfig" -n management -e management get addresses | grep "$INSTANCE_MANAGEMENT_SERVICES_IPADDR_CIDR" | awk '{print $4}' | tail -n1 | awk -F/ '{print $1}')"
 
