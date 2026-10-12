@@ -14,7 +14,9 @@ source "$RING0_ROOT/scripts/management/install-platform-management.sh"
 ################################################################################
 # Starting the tasks
 # Netbox is installed by Flux (HelmRelease apps/04-cmdb).
-# The cmdb-netbox-remote-auth secret is created by deploy-flux.sh.
+# The cmdb-netbox-remote-auth secret is rendered by hand from
+# core-services/management/manifests/04-cmdb/netbox-remote-auth.py.j2 with the
+# Authentik OAuth credentials: no script creates it.
 # This script only creates the Tailscale API gateway needed to expose cmdb.<ts_suffix>.
 
 install_cmdb_api_gateway

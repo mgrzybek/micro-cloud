@@ -1,5 +1,6 @@
-# cmdb-netbox-remote-auth secret must exist before reconciliation.
-# task flux creates it by rendering netbox-remote-auth.py.j2 with the Authentik OAuth credentials.
+# cmdb-netbox-remote-auth secret must exist before reconciliation. It is rendered by hand from
+# core-services/management/manifests/04-cmdb/netbox-remote-auth.py.j2 with the
+# Authentik OAuth credentials: no script creates it.
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
