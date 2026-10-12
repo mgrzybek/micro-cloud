@@ -2,7 +2,7 @@
 # grafana-data PVC, so the Deployment uses the Recreate strategy: SQLite cannot
 # be shared by two pods on the same volume.
 #
-# ${AUTH_CLIENT_ID}, ${AUTH_CLIENT_SECRET}, ${ISSUER_URL} and ${ROOT_URL} are
+# ${AUTH_CLIENT_ID}, ${AUTH_CLIENT_SECRET}, ${IDP_URL} and ${ROOT_URL} are
 # resolved by Grafana itself from the container environment (env provider, see
 # https://grafana.com/docs/grafana/latest/setup-grafana/configure-grafana/), fed
 # by the grafana-oauth Secret produced by the ExternalSecret.
@@ -36,9 +36,11 @@ spec:
       login_attribute_path: preferred_username
       name_attribute_path: name
       groups_attribute_path: groups
-      auth_url: ${ISSUER_URL}/authorize/
-      token_url: ${ISSUER_URL}/token/
-      api_url: ${ISSUER_URL}/userinfo/
+      # Authentik serves these endpoints at /application/o/, not under the
+      # application slug (only the issuer and the discovery document are).
+      auth_url: ${IDP_URL}/application/o/authorize/
+      token_url: ${IDP_URL}/application/o/token/
+      api_url: ${IDP_URL}/application/o/userinfo/
       role_attribute_path: "contains(groups[*], 'Grafana Admins') && 'Admin' || contains(groups[*], 'Grafana Editors') && 'Editor' || 'Viewer'"
   deployment:
     spec:
@@ -72,11 +74,11 @@ spec:
                     secretKeyRef:
                       name: grafana-oauth
                       key: client-secret
-                - name: ISSUER_URL
+                - name: IDP_URL
                   valueFrom:
                     secretKeyRef:
                       name: grafana-oauth
-                      key: issuer-url
+                      key: idp-url
                 - name: ROOT_URL
                   valueFrom:
                     secretKeyRef:

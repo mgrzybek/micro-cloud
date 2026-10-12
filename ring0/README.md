@@ -311,7 +311,7 @@ export TS_SUFFIX=
 
 bao kv put secret/grafana \
   client-id=${GRAFANA_CLIENT_ID} client-secret=${GRAFANA_CLIENT_SECRET} \
-  issuer-url=https://idp.${TS_SUFFIX}/application/o/grafana \
+  idp-url=https://idp.${TS_SUFFIX} \
   root-url=https://grafana.${TS_SUFFIX}
 ```
 

@@ -3,7 +3,9 @@ REMOTE_AUTH_ENABLED = True
 REMOTE_AUTH_BACKEND = 'social_core.backends.open_id_connect.OpenIdConnectAuth'
 
 # python-social-auth config
-SOCIAL_AUTH_OIDC_OIDC_ENDPOINT = "https://idp.{{ts_suffix}}/application/o/{{application_slug}}/"
+# No trailing slash: social-core appends "/.well-known/openid-configuration"
+# itself and Authentik answers 404 on the resulting double slash.
+SOCIAL_AUTH_OIDC_OIDC_ENDPOINT = "https://idp.{{ts_suffix}}/application/o/{{application_slug}}"
 SOCIAL_AUTH_OIDC_KEY = "{{client_id}}"
 SOCIAL_AUTH_OIDC_SECRET = "{{client_secret}}"
 #SOCIAL_AUTH_OIDC_SCOPE = [ "openid", "profile", "email", "roles" ]

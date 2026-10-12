@@ -53,13 +53,14 @@ print_milestone "Deploying FluxCD Operator and bootstrapping GitOps for ring0"
 
 print_step "Creating ghcr-auth pull secret in flux-system"
 kubectl create namespace flux-system --dry-run=client -o yaml | kubectl apply -f -
-if ! kubectl get secret -n flux-system ghcr-auth >/dev/null 2>&1; then
-	kubectl create secret docker-registry ghcr-auth \
-		--namespace flux-system \
-		--docker-server=ghcr.io \
-		--docker-username="$GITHUB_ACTOR" \
-		--docker-password="$GHCR_TOKEN"
-fi
+# Applied on every run, not only when missing: a renewed GHCR_TOKEN must replace
+# the expired one, otherwise Flux keeps failing to pull with "DENIED".
+kubectl create secret docker-registry ghcr-auth \
+	--namespace flux-system \
+	--docker-server=ghcr.io \
+	--docker-username="$GITHUB_ACTOR" \
+	--docker-password="$GHCR_TOKEN" \
+	--dry-run=client -o yaml | kubectl apply -f -
 print_check "ghcr-auth pull secret created"
 
 ################################################################################
