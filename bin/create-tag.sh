@@ -4,12 +4,13 @@
 # .github/workflows/release.yml (OCI artifact + latest + GitHub Release).
 #
 # Run it yourself, from an up-to-date main:
-#   bash create-tag.sh v0.1.0-rc.1   # throwaway pre-release to validate the workflow
-#   bash create-tag.sh v0.1.0        # final release
+#   bash bin/create-tag.sh v0.1.0-rc.1   # throwaway pre-release to validate the workflow
+#   bash bin/create-tag.sh v0.1.0        # final release
 
 set -euo pipefail
 
-cd "$(dirname "$0")"
+# CHANGELOG.md lives at the repository root, not next to this script.
+cd "$(dirname "$0")/.."
 
 version="${1:-}"
 
@@ -63,7 +64,7 @@ echo "Release page:  gh release view $version"
 
 if [[ "$version" =~ -rc\. ]]; then
 	echo
-	echo "This is a throwaway pre-release. Once validated, remove it with:"
-	echo "  git push origin :refs/tags/$version && git tag -d $version"
-	echo "  gh release delete $version --yes   # if a Release was created"
+	echo "This is a throwaway pre-release. Remove it before cutting the final tag,"
+	echo "otherwise git-cliff only lists the commits made since this pre-release:"
+	echo "  gh release delete $version --yes --cleanup-tag && git tag -d $version"
 fi
