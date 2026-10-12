@@ -111,7 +111,7 @@ ISSUER
 function install_local_path_provisioner() {
 	print_milestone "Installing local path provisioner"
 
-	local PROVISIONER_VERSION=v0.0.32
+	local PROVISIONER_VERSION=v0.0.37
 
 	curl -o "$RING0_ROOT/dist/local-path-storage.yaml" "https://raw.githubusercontent.com/rancher/local-path-provisioner/$PROVISIONER_VERSION/deploy/local-path-storage.yaml"
 	kubectl apply --wait -f "$RING0_ROOT/dist/local-path-storage.yaml"
