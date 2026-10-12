@@ -101,6 +101,14 @@ kubectl create configmap cluster-config \
 	--dry-run=client -o yaml | kubectl apply -f -
 print_check "cluster-config ConfigMap created in platform-management"
 
+print_step "Creating internal-ca-chain ConfigMap in observability"
+kubectl create namespace observability --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap internal-ca-chain \
+	--namespace observability \
+	--from-file="internal-ca.crt=$RING0_ROOT/dist/bundle.crt" \
+	--dry-run=client -o yaml | kubectl apply -f -
+print_check "internal-ca-chain ConfigMap created in observability"
+
 print_step "Creating cluster-config ConfigMap in tinkerbell-system"
 kubectl create namespace tinkerbell-system --dry-run=client -o yaml | kubectl apply -f -
 kubectl create configmap cluster-config \
