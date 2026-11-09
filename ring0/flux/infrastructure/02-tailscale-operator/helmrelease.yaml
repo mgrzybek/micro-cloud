@@ -11,7 +11,7 @@ spec:
     spec:
       chart: tailscale-operator
       # Pinned to a single minor: bump deliberately after reading the release notes.
-      version: 1.102.x
+      version: 1.104.x
       sourceRef:
         kind: HelmRepository
         name: tailscale
